@@ -262,7 +262,7 @@ uint32_t digits10(uint64_t v) {
  *
  * Modified in order to handle signed integers since the original code was
  * designed for unsigned integers. */
-int ll2string(char* dst, size_t dstlen, long long svalue) {
+int ll2string(char* dst, size_t dstlen, long long svalue) {//将longlong转成str
     static const char digits[201] =
         "0001020304050607080910111213141516171819"
         "2021222324252627282930313233343536373839"
@@ -287,8 +287,8 @@ int ll2string(char* dst, size_t dstlen, long long svalue) {
     }
 
     /* Check length. */
-    uint32_t const length = digits10(value)+negative;
-    if (length >= dstlen) return 0;
+    uint32_t const length = digits10(value)+negative;//得到位数
+    if (length >= dstlen) return 0;//存不下
 
     /* Null term. */
     uint32_t next = length;
@@ -297,15 +297,15 @@ int ll2string(char* dst, size_t dstlen, long long svalue) {
     while (value >= 100) {
         int const i = (value % 100) * 2;
         value /= 100;
-        dst[next] = digits[i + 1];
+        dst[next] = digits[i + 1];//数字在disits数组中的位置，一次处理两位
         dst[next - 1] = digits[i];
         next -= 2;
     }
 
     /* Handle last 1-2 digits. */
     if (value < 10) {
-        dst[next] = '0' + (uint32_t) value;
-    } else {
+        dst[next] = '0' + (uint32_t) value;//只剩一位
+    } else {//100~10之间，不需要再除
         int i = (uint32_t) value * 2;
         dst[next] = digits[i + 1];
         dst[next - 1] = digits[i];

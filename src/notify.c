@@ -105,14 +105,14 @@ void notifyKeyspaceEvent(int type, char *event, robj *key, int dbid) {
 
     /* __keyspace@<db>__:<key> <event> notifications. */
     if (server.notify_keyspace_events & REDIS_NOTIFY_KEYSPACE) {
-        chan = sdsnewlen("__keyspace@",11);
-        len = ll2string(buf,sizeof(buf),dbid);
+        chan = sdsnewlen("__keyspace@",11);//创建动态字符串
+        len = ll2string(buf,sizeof(buf),dbid);//数据库ID转string
         chan = sdscatlen(chan, buf, len);
         chan = sdscatlen(chan, "__:", 3);
-        chan = sdscatsds(chan, key->ptr);
+        chan = sdscatsds(chan, key->ptr);//拼接消息消息类型+数据库ID+键
         chanobj = createObject(REDIS_STRING, chan);
-        pubsubPublishMessage(chanobj, eventobj);
-        decrRefCount(chanobj);
+        pubsubPublishMessage(chanobj, eventobj);//发布消息
+        decrRefCount(chanobj);//减小引用计数
     }
 
     /* __keyevente@<db>__:<event> <key> notifications. */

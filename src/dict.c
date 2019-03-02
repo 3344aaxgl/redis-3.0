@@ -244,15 +244,15 @@ int dictExpand(dict *d, unsigned long size)
  * work it does would be unbound and the function may block for a long time. */
 int dictRehash(dict *d, int n) {
     int empty_visits = n*10; /* Max number of empty buckets to visit. */
-    if (!dictIsRehashing(d)) return 0;
+    if (!dictIsRehashing(d)) return 0;//没有处于rehash
 
-    while(n-- && d->ht[0].used != 0) {
+    while(n-- && d->ht[0].used != 0) {//不能超过n个槽位或者rehash结束
         dictEntry *de, *nextde;
 
         /* Note that rehashidx can't overflow as we are sure there are more
          * elements because ht[0].used != 0 */
-        assert(d->ht[0].size > (unsigned long)d->rehashidx);
-        while(d->ht[0].table[d->rehashidx] == NULL) {
+        assert(d->ht[0].size > (unsigned long)d->rehashidx);//rehash的位置不能超过hash表大小
+        while(d->ht[0].table[d->rehashidx] == NULL) {//跳过不超过10*n的空位
             d->rehashidx++;
             if (--empty_visits == 0) return 1;
         }
@@ -263,22 +263,22 @@ int dictRehash(dict *d, int n) {
 
             nextde = de->next;
             /* Get the index in the new hash table */
-            h = dictHashKey(d, de->key) & d->ht[1].sizemask;
-            de->next = d->ht[1].table[h];
+            h = dictHashKey(d, de->key) & d->ht[1].sizemask;//计算新的位置
+            de->next = d->ht[1].table[h];//头插法
             d->ht[1].table[h] = de;
             d->ht[0].used--;
-            d->ht[1].used++;
+            d->ht[1].used++;//更新使用情况
             de = nextde;
         }
         d->ht[0].table[d->rehashidx] = NULL;
-        d->rehashidx++;
+        d->rehashidx++;//记录上次rehash的位置
     }
 
     /* Check if we already rehashed the whole table... */
-    if (d->ht[0].used == 0) {
-        zfree(d->ht[0].table);
+    if (d->ht[0].used == 0) {//rehash结束
+        zfree(d->ht[0].table);//释放0hash表里的键值对，将1转成0
         d->ht[0] = d->ht[1];
-        _dictReset(&d->ht[1]);
+        _dictReset(&d->ht[1]);//重置1
         d->rehashidx = -1;
         return 0;
     }
@@ -315,16 +315,16 @@ int dictRehashMilliseconds(dict *d, int ms) {
  * dictionary so that the hash table automatically migrates from H1 to H2
  * while it is actively used. */
 static void _dictRehashStep(dict *d) {
-    if (d->iterators == 0) dictRehash(d,1);
+    if (d->iterators == 0) dictRehash(d,1);//中单次rehash
 }
 
 /* Add an element to the target hash table */
 int dictAdd(dict *d, void *key, void *val)
 {
-    dictEntry *entry = dictAddRaw(d,key);
+    dictEntry *entry = dictAddRaw(d,key);//增加键
 
     if (!entry) return DICT_ERR;
-    dictSetVal(d, entry, val);
+    dictSetVal(d, entry, val);//赋值
     return DICT_OK;
 }
 
@@ -349,7 +349,7 @@ dictEntry *dictAddRaw(dict *d, void *key)
     dictEntry *entry;
     dictht *ht;
 
-    if (dictIsRehashing(d)) _dictRehashStep(d);
+    if (dictIsRehashing(d)) _dictRehashStep(d);//执行rehash
 
     /* Get the index of the new element, or -1 if
      * the element already exists. */
@@ -486,13 +486,13 @@ void dictRelease(dict *d)
     zfree(d);
 }
 
-dictEntry *dictFind(dict *d, const void *key)
+dictEntry *dictFind(dict *d, const void *key)//寻找键
 {
     dictEntry *he;
     unsigned int h, idx, table;
-
+    //表1为空
     if (d->ht[0].size == 0) return NULL; /* We don't have a table at all */
-    if (dictIsRehashing(d)) _dictRehashStep(d);
+    if (dictIsRehashing(d)) _dictRehashStep(d);//执行单步rehash
     h = dictHashKey(d, key);
     for (table = 0; table <= 1; table++) {
         idx = h & d->ht[table].sizemask;

@@ -42,15 +42,15 @@ void slotToKeyFlush(void);
  *----------------------------------------------------------------------------*/
 
 robj *lookupKey(redisDb *db, robj *key) {
-    dictEntry *de = dictFind(db->dict,key->ptr);
+    dictEntry *de = dictFind(db->dict,key->ptr);//查找键
     if (de) {
-        robj *val = dictGetVal(de);
+        robj *val = dictGetVal(de);//得到值
 
         /* Update the access time for the ageing algorithm.
          * Don't do it if we have a saving child, as this will trigger
          * a copy on write madness. */
         if (server.rdb_child_pid == -1 && server.aof_child_pid == -1)
-            val->lru = LRU_CLOCK();
+            val->lru = LRU_CLOCK();//设置最近一次访问时间，用于lru淘汰策略
         return val;
     } else {
         return NULL;
@@ -60,9 +60,9 @@ robj *lookupKey(redisDb *db, robj *key) {
 robj *lookupKeyRead(redisDb *db, robj *key) {
     robj *val;
 
-    expireIfNeeded(db,key);
-    val = lookupKey(db,key);
-    if (val == NULL)
+    expireIfNeeded(db,key);//删除过期key
+    val = lookupKey(db,key);//查找key
+    if (val == NULL)//没有命中
         server.stat_keyspace_misses++;
     else
         server.stat_keyspace_hits++;
@@ -70,13 +70,13 @@ robj *lookupKeyRead(redisDb *db, robj *key) {
 }
 
 robj *lookupKeyWrite(redisDb *db, robj *key) {
-    expireIfNeeded(db,key);
-    return lookupKey(db,key);
+    expireIfNeeded(db,key);//删除过期key
+    return lookupKey(db,key);//查找key
 }
 
 robj *lookupKeyReadOrReply(redisClient *c, robj *key, robj *reply) {
     robj *o = lookupKeyRead(c->db, key);
-    if (!o) addReply(c,reply);
+    if (!o) addReply(c,reply);//没找到则返回rely
     return o;
 }
 
@@ -91,12 +91,12 @@ robj *lookupKeyWriteOrReply(redisClient *c, robj *key, robj *reply) {
  *
  * The program is aborted if the key already exists. */
 void dbAdd(redisDb *db, robj *key, robj *val) {
-    sds copy = sdsdup(key->ptr);
-    int retval = dictAdd(db->dict, copy, val);
+    sds copy = sdsdup(key->ptr);//复制key
+    int retval = dictAdd(db->dict, copy, val);//增加键值
 
-    redisAssertWithInfo(NULL,key,retval == REDIS_OK);
+    redisAssertWithInfo(NULL,key,retval == REDIS_OK);//检查是否增加成功
     if (val->type == REDIS_LIST) signalListAsReady(db, key);
-    if (server.cluster_enabled) slotToKeyAdd(key);
+    if (server.cluster_enabled) slotToKeyAdd(key);//槽增加键
  }
 
 /* Overwrite an existing key with a new value. Incrementing the reference
@@ -108,7 +108,7 @@ void dbOverwrite(redisDb *db, robj *key, robj *val) {
     dictEntry *de = dictFind(db->dict,key->ptr);
 
     redisAssertWithInfo(NULL,key,de != NULL);
-    dictReplace(db->dict, key->ptr, val);
+    dictReplace(db->dict, key->ptr, val);//重写值
 }
 
 /* High level Set operation. This function can be used in order to set
@@ -118,17 +118,17 @@ void dbOverwrite(redisDb *db, robj *key, robj *val) {
  * 2) clients WATCHing for the destination key notified.
  * 3) The expire time of the key is reset (the key is made persistent). */
 void setKey(redisDb *db, robj *key, robj *val) {
-    if (lookupKeyWrite(db,key) == NULL) {
+    if (lookupKeyWrite(db,key) == NULL) {//键不存在则增加
         dbAdd(db,key,val);
     } else {
         dbOverwrite(db,key,val);
     }
     incrRefCount(val);
-    removeExpire(db,key);
+    removeExpire(db,key);//删除过期键
     signalModifiedKey(db,key);
 }
 
-int dbExists(redisDb *db, robj *key) {
+int dbExists(redisDb *db, robj *key) {//键是否存在
     return dictFind(db->dict,key->ptr) != NULL;
 }
 
@@ -162,9 +162,9 @@ robj *dbRandomKey(redisDb *db) {
 int dbDelete(redisDb *db, robj *key) {
     /* Deleting an entry from the expires dict will not free the sds of
      * the key, because it is shared with the main dictionary. */
-    if (dictSize(db->expires) > 0) dictDelete(db->expires,key->ptr);
-    if (dictDelete(db->dict,key->ptr) == DICT_OK) {
-        if (server.cluster_enabled) slotToKeyDel(key);
+    if (dictSize(db->expires) > 0) dictDelete(db->expires,key->ptr);//从过期字典中删除
+    if (dictDelete(db->dict,key->ptr) == DICT_OK) {//从主字典中删除
+        if (server.cluster_enabled) slotToKeyDel(key);//启用集群，从槽中删除
         return 1;
     } else {
         return 0;
@@ -200,7 +200,7 @@ int dbDelete(redisDb *db, robj *key) {
  */
 robj *dbUnshareStringValue(redisDb *db, robj *key, robj *o) {
     redisAssert(o->type == REDIS_STRING);
-    if (o->refcount != 1 || o->encoding != REDIS_ENCODING_RAW) {
+    if (o->refcount != 1 || o->encoding != REDIS_ENCODING_RAW) {//
         robj *decoded = getDecodedObject(o);
         o = createRawStringObject(decoded->ptr, sdslen(decoded->ptr));
         decrRefCount(decoded);
@@ -209,7 +209,7 @@ robj *dbUnshareStringValue(redisDb *db, robj *key, robj *o) {
     return o;
 }
 
-long long emptyDb(void(callback)(void*)) {
+long long emptyDb(void(callback)(void*)) {//清空数据库数据
     int j;
     long long removed = 0;
 
@@ -222,7 +222,7 @@ long long emptyDb(void(callback)(void*)) {
     return removed;
 }
 
-int selectDb(redisClient *c, int id) {
+int selectDb(redisClient *c, int id) {//选择数据库
     if (id < 0 || id >= server.dbnum)
         return REDIS_ERR;
     c->db = &server.db[id];
@@ -793,12 +793,12 @@ long long getExpire(redisDb *db, robj *key) {
 
     /* No expire? return ASAP */
     if (dictSize(db->expires) == 0 ||
-       (de = dictFind(db->expires,key->ptr)) == NULL) return -1;
+       (de = dictFind(db->expires,key->ptr)) == NULL) return -1;//过期表为空或者该键没有设置过期时间
 
     /* The entry was found in the expire dict, this means it should also
      * be present in the main dict (safety check). */
-    redisAssertWithInfo(NULL,key,dictFind(db->dict,key->ptr) != NULL);
-    return dictGetSignedIntegerVal(de);
+    redisAssertWithInfo(NULL,key,dictFind(db->dict,key->ptr) != NULL);//主字典中也应该存在
+    return dictGetSignedIntegerVal(de);//返回过期时间
 }
 
 /* Propagate expires into slaves and the AOF file.
@@ -814,25 +814,25 @@ void propagateExpire(redisDb *db, robj *key) {
 
     argv[0] = shared.del;
     argv[1] = key;
-    incrRefCount(argv[0]);
+    incrRefCount(argv[0]);//增加引用计数
     incrRefCount(argv[1]);
 
-    if (server.aof_state != REDIS_AOF_OFF)
-        feedAppendOnlyFile(server.delCommand,db->id,argv,2);
-    replicationFeedSlaves(server.slaves,db->id,argv,2);
+    if (server.aof_state != REDIS_AOF_OFF)//AOF开启
+        feedAppendOnlyFile(server.delCommand,db->id,argv,2);//往AOF文件中增加删除命令？
+    replicationFeedSlaves(server.slaves,db->id,argv,2);//从服务器删除
 
     decrRefCount(argv[0]);
     decrRefCount(argv[1]);
 }
 
 int expireIfNeeded(redisDb *db, robj *key) {
-    mstime_t when = getExpire(db,key);
+    mstime_t when = getExpire(db,key);//返回过期时间
     mstime_t now;
 
     if (when < 0) return 0; /* No expire for this key */
 
     /* Don't expire anything while loading. It will be done later. */
-    if (server.loading) return 0;
+    if (server.loading) return 0;//加载期间不作废
 
     /* If we are in the context of a Lua script, we claim that time is
      * blocked to when the Lua script started. This way a key can expire
@@ -848,17 +848,17 @@ int expireIfNeeded(redisDb *db, robj *key) {
      * Still we try to return the right information to the caller,
      * that is, 0 if we think the key should be still valid, 1 if
      * we think the key is expired at this time. */
-    if (server.masterhost != NULL) return now > when;
+    if (server.masterhost != NULL) return now > when;//主机名称
 
     /* Return when this key has not expired */
     if (now <= when) return 0;
 
     /* Delete the key */
     server.stat_expiredkeys++;
-    propagateExpire(db,key);
+    propagateExpire(db,key);//删除过期键
     notifyKeyspaceEvent(REDIS_NOTIFY_EXPIRED,
-        "expired",key,db->id);
-    return dbDelete(db,key);
+        "expired",key,db->id);//事件通知
+    return dbDelete(db,key);//删除key
 }
 
 /*-----------------------------------------------------------------------------
