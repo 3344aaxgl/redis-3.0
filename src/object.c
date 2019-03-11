@@ -57,19 +57,19 @@ robj *createRawStringObject(char *ptr, size_t len) {
 /* Create a string object with encoding REDIS_ENCODING_EMBSTR, that is
  * an object where the sds string is actually an unmodifiable string
  * allocated in the same chunk as the object itself. */
-robj *createEmbeddedStringObject(char *ptr, size_t len) {
+robj *createEmbeddedStringObject(char *ptr, size_t len) {//sds和robj分配在一起，成为内嵌
     robj *o = zmalloc(sizeof(robj)+sizeof(struct sdshdr)+len+1);
-    struct sdshdr *sh = (void*)(o+1);
+    struct sdshdr *sh = (void*)(o+1);//跳过robj对象
 
-    o->type = REDIS_STRING;
-    o->encoding = REDIS_ENCODING_EMBSTR;
-    o->ptr = sh+1;
-    o->refcount = 1;
-    o->lru = LRU_CLOCK();
+    o->type = REDIS_STRING;//对象类型
+    o->encoding = REDIS_ENCODING_EMBSTR;//解码方式
+    o->ptr = sh+1;//指向真正的字符串空间
+    o->refcount = 1;//引用计数
+    o->lru = LRU_CLOCK();//过期时间
 
-    sh->len = len;
+    sh->len = len;//字符串长度
     sh->free = 0;
-    if (ptr) {
+    if (ptr) {//初始化的sds
         memcpy(sh->buf,ptr,len);
         sh->buf[len] = '\0';
     } else {
@@ -139,16 +139,16 @@ robj *createStringObjectFromLongDouble(long double value, int humanfriendly) {
         /* Now remove trailing zeroes after the '.' */
         if (strchr(buf,'.') != NULL) {
             char *p = buf+len-1;
-            while(*p == '0') {
+            while(*p == '0') {//去除最后的0
                 p--;
                 len--;
             }
-            if (*p == '.') len--;
+            if (*p == '.') len--;//小数点后全是0
         }
     } else {
         len = snprintf(buf,sizeof(buf),"%.17Lg", value);
     }
-    return createStringObject(buf,len);
+    return createStringObject(buf,len);//创建对象
 }
 
 /* Duplicate a string object, with the guarantee that the returned object
@@ -619,7 +619,7 @@ int getLongDoubleFromObjectOrReply(redisClient *c, robj *o, long double *target,
     return REDIS_OK;
 }
 
-int getLongLongFromObject(robj *o, long long *target) {
+int getLongLongFromObject(robj *o, long long *target) {//获取longlong
     long long value;
     char *eptr;
 
@@ -657,7 +657,7 @@ int getLongLongFromObjectOrReply(redisClient *c, robj *o, long long *target, con
     return REDIS_OK;
 }
 
-int getLongFromObjectOrReply(redisClient *c, robj *o, long *target, const char *msg) {
+int getLongFromObjectOrReply(redisClient *c, robj *o, long *target, const char *msg) {//获取longlong
     long long value;
 
     if (getLongLongFromObjectOrReply(c, o, &value, msg) != REDIS_OK) return REDIS_ERR;

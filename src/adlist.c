@@ -110,10 +110,10 @@ list *listAddNodeTail(list *list, void *value)
     if ((node = zmalloc(sizeof(*node))) == NULL)
         return NULL;
     node->value = value;
-    if (list->len == 0) {
+    if (list->len == 0) {//空链表
         list->head = list->tail = node;
         node->prev = node->next = NULL;
-    } else {
+    } else {//插入到链表最后
         node->prev = list->tail;
         node->next = NULL;
         list->tail->next = node;

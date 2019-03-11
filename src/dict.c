@@ -464,15 +464,15 @@ int _dictClear(dict *d, dictht *ht, void(callback)(void *)) {
         if ((he = ht->table[i]) == NULL) continue;
         while(he) {
             nextHe = he->next;
-            dictFreeKey(d, he);
-            dictFreeVal(d, he);
+            dictFreeKey(d, he);//释放键
+            dictFreeVal(d, he);//释放值
             zfree(he);
             ht->used--;
             he = nextHe;
         }
     }
     /* Free the table and the allocated cache structure */
-    zfree(ht->table);
+    zfree(ht->table);//释放表空间
     /* Re-initialize the table */
     _dictReset(ht);
     return DICT_OK; /* never fails */
@@ -628,15 +628,15 @@ dictEntry *dictGetRandomKey(dict *d)
 
     if (dictSize(d) == 0) return NULL;
     if (dictIsRehashing(d)) _dictRehashStep(d);
-    if (dictIsRehashing(d)) {
+    if (dictIsRehashing(d)) {//进行rehash中
         do {
             /* We are sure there are no elements in indexes from 0
              * to rehashidx-1 */
             h = d->rehashidx + (random() % (d->ht[0].size +
                                             d->ht[1].size -
-                                            d->rehashidx));
+                                            d->rehashidx));//跳过已经执行rehash的
             he = (h >= d->ht[0].size) ? d->ht[1].table[h - d->ht[0].size] :
-                                      d->ht[0].table[h];
+                                      d->ht[0].table[h];//找到链表
         } while(he == NULL);
     } else {
         do {
@@ -654,10 +654,10 @@ dictEntry *dictGetRandomKey(dict *d)
     while(he) {
         he = he->next;
         listlen++;
-    }
+    }//统计链表长度
     listele = random() % listlen;
     he = orighe;
-    while(listele--) he = he->next;
+    while(listele--) he = he->next;//取键
     return he;
 }
 
@@ -752,7 +752,7 @@ unsigned int dictGetSomeKeys(dict *d, dictEntry **des, unsigned int count) {
 
 /* Function to reverse bits. Algorithm from:
  * http://graphics.stanford.edu/~seander/bithacks.html#ReverseParallel */
-static unsigned long rev(unsigned long v) {
+static unsigned long rev(unsigned long v) {//32位为例，第一次每16位调换位置，接下来8位。。。，每次都先取到数据，然后进行位置调换
     unsigned long s = 8 * sizeof(v); // bit size; must be power of 2
     unsigned long mask = ~0;
     while ((s >>= 1) > 0) {
@@ -855,20 +855,20 @@ unsigned long dictScan(dict *d,
     const dictEntry *de;
     unsigned long m0, m1;
 
-    if (dictSize(d) == 0) return 0;
+    if (dictSize(d) == 0) return 0;//空
 
-    if (!dictIsRehashing(d)) {
+    if (!dictIsRehashing(d)) {//没有rehash
         t0 = &(d->ht[0]);
         m0 = t0->sizemask;
 
         /* Emit entries at cursor */
-        de = t0->table[v & m0];
-        while (de) {
+        de = t0->table[v & m0];//指向哈希桶
+        while (de) {//遍历桶中所有节点
             fn(privdata, de);
             de = de->next;
         }
 
-    } else {
+    } else {//处于rehash过程中
         t0 = &d->ht[0];
         t1 = &d->ht[1];
 
@@ -892,7 +892,7 @@ unsigned long dictScan(dict *d,
          * of the index pointed to by the cursor in the smaller table */
         do {
             /* Emit entries at cursor */
-            de = t1->table[v & m1];
+            de = t1->table[v & m1];//大表中的桶
             while (de) {
                 fn(privdata, de);
                 de = de->next;
@@ -984,7 +984,7 @@ static int _dictKeyIndex(dict *d, const void *key)
     return idx;
 }
 
-void dictEmpty(dict *d, void(callback)(void*)) {
+void dictEmpty(dict *d, void(callback)(void*)) {//释放整个字典
     _dictClear(d,&d->ht[0],callback);
     _dictClear(d,&d->ht[1],callback);
     d->rehashidx = -1;
