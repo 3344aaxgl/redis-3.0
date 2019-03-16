@@ -2348,25 +2348,25 @@ void closeListeningSockets(int unlink_unix_socket) {
 }
 
 int prepareForShutdown(int flags) {
-    int save = flags & REDIS_SHUTDOWN_SAVE;
+    int save = flags & REDIS_SHUTDOWN_SAVE;//是否保存开关
     int nosave = flags & REDIS_SHUTDOWN_NOSAVE;
 
     redisLog(REDIS_WARNING,"User requested shutdown...");
     /* Kill the saving child if there is a background saving in progress.
        We want to avoid race conditions, for instance our saving child may
        overwrite the synchronous saving did by SHUTDOWN. */
-    if (server.rdb_child_pid != -1) {
+    if (server.rdb_child_pid != -1) {//杀掉正在保存的子进程，防止和关闭过程的保存动作冲突
         redisLog(REDIS_WARNING,"There is a child saving an .rdb. Killing it!");
         kill(server.rdb_child_pid,SIGUSR1);
-        rdbRemoveTempFile(server.rdb_child_pid);
+        rdbRemoveTempFile(server.rdb_child_pid);//移除备份文件
     }
-    if (server.aof_state != REDIS_AOF_OFF) {
+    if (server.aof_state != REDIS_AOF_OFF) {//AOF备份中
         /* Kill the AOF saving child as the AOF we already have may be longer
          * but contains the full dataset anyway. */
         if (server.aof_child_pid != -1) {
             /* If we have AOF enabled but haven't written the AOF yet, don't
              * shutdown or else the dataset will be lost. */
-            if (server.aof_state == REDIS_AOF_WAIT_REWRITE) {
+            if (server.aof_state == REDIS_AOF_WAIT_REWRITE) {//等待AOF执行完
                 redisLog(REDIS_WARNING, "Writing initial AOF, can't exit.");
                 return REDIS_ERR;
             }
@@ -2376,12 +2376,12 @@ int prepareForShutdown(int flags) {
         }
         /* Append only file: fsync() the AOF and exit */
         redisLog(REDIS_NOTICE,"Calling fsync() on the AOF file.");
-        aof_fsync(server.aof_fd);
+        aof_fsync(server.aof_fd);//刷新数据到硬盘
     }
     if ((server.saveparamslen > 0 && !nosave) || save) {
         redisLog(REDIS_NOTICE,"Saving the final RDB snapshot before exiting.");
         /* Snapshotting. Perform a SYNC SAVE and exit */
-        if (rdbSave(server.rdb_filename) != REDIS_OK) {
+        if (rdbSave(server.rdb_filename) != REDIS_OK) {//保存
             /* Ooops.. error saving! The best we can do is to continue
              * operating. Note that if there was a background saving process,
              * in the next cron() Redis will be notified that the background

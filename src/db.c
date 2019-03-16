@@ -513,14 +513,14 @@ void scanGenericCommand(redisClient *c, robj *o, unsigned long cursor) {
         } while (cursor &&
               maxiterations-- &&
               listLength(keys) < (unsigned long)count);//由返回的个数个最大的迭代次数决定循环
-    } else if (o->type == REDIS_SET) {
+    } else if (o->type == REDIS_SET) {//set，intset编码
         int pos = 0;
         int64_t ll;
 
         while(intsetGet(o->ptr,pos++,&ll))
             listAddNodeTail(keys,createStringObjectFromLongLong(ll));
         cursor = 0;
-    } else if (o->type == REDIS_HASH || o->type == REDIS_ZSET) {
+    } else if (o->type == REDIS_HASH || o->type == REDIS_ZSET) {//hashtable和zset，ziplist编码
         unsigned char *p = ziplistIndex(o->ptr,0);
         unsigned char *vstr;
         unsigned int vlen;
@@ -539,7 +539,7 @@ void scanGenericCommand(redisClient *c, robj *o, unsigned long cursor) {
     }
 
     /* Step 3: Filter elements. */
-    node = listFirst(keys);
+    node = listFirst(keys);//获取链表第一个节点
     while (node) {
         robj *kobj = listNodeValue(node);
         nextnode = listNextNode(node);
@@ -547,24 +547,24 @@ void scanGenericCommand(redisClient *c, robj *o, unsigned long cursor) {
 
         /* Filter element if it does not match the pattern. */
         if (!filter && use_pattern) {
-            if (sdsEncodedObject(kobj)) {
-                if (!stringmatchlen(pat, patlen, kobj->ptr, sdslen(kobj->ptr), 0))
+            if (sdsEncodedObject(kobj)) {//raw或者embstr编码
+                if (!stringmatchlen(pat, patlen, kobj->ptr, sdslen(kobj->ptr), 0))//不匹配
                     filter = 1;
             } else {
                 char buf[REDIS_LONGSTR_SIZE];
                 int len;
 
                 redisAssert(kobj->encoding == REDIS_ENCODING_INT);
-                len = ll2string(buf,sizeof(buf),(long)kobj->ptr);
+                len = ll2string(buf,sizeof(buf),(long)kobj->ptr);//数字转成string在匹配
                 if (!stringmatchlen(pat, patlen, buf, len, 0)) filter = 1;
             }
         }
 
         /* Filter element if it is an expired key. */
-        if (!filter && o == NULL && expireIfNeeded(c->db, kobj)) filter = 1;
+        if (!filter && o == NULL && expireIfNeeded(c->db, kobj)) filter = 1;//过期的键过滤掉
 
         /* Remove the element and its associted value if needed. */
-        if (filter) {
+        if (filter) {//删除过滤的节点
             decrRefCount(kobj);
             listDelNode(keys, node);
         }
@@ -575,7 +575,7 @@ void scanGenericCommand(redisClient *c, robj *o, unsigned long cursor) {
         if (o && (o->type == REDIS_ZSET || o->type == REDIS_HASH)) {
             node = nextnode;
             nextnode = listNextNode(node);
-            if (filter) {
+            if (filter) {//删除值
                 kobj = listNodeValue(node);
                 decrRefCount(kobj);
                 listDelNode(keys, node);
@@ -586,10 +586,10 @@ void scanGenericCommand(redisClient *c, robj *o, unsigned long cursor) {
 
     /* Step 4: Reply to the client. */
     addReplyMultiBulkLen(c, 2);
-    addReplyBulkLongLong(c,cursor);
+    addReplyBulkLongLong(c,cursor);//返回游标
 
-    addReplyMultiBulkLen(c, listLength(keys));
-    while ((node = listFirst(keys)) != NULL) {
+    addReplyMultiBulkLen(c, listLength(keys));//返回键
+    while ((node = listFirst(keys)) != NULL) {//删除列表
         robj *kobj = listNodeValue(node);
         addReplyBulk(c, kobj);
         decrRefCount(kobj);
@@ -604,15 +604,15 @@ cleanup:
 /* The SCAN command completely relies on scanGenericCommand. */
 void scanCommand(redisClient *c) {
     unsigned long cursor;
-    if (parseScanCursorOrReply(c,c->argv[1],&cursor) == REDIS_ERR) return;
+    if (parseScanCursorOrReply(c,c->argv[1],&cursor) == REDIS_ERR) return;//获取游标
     scanGenericCommand(c,NULL,cursor);
 }
 
-void dbsizeCommand(redisClient *c) {
+void dbsizeCommand(redisClient *c) {//数据库大小命令
     addReplyLongLong(c,dictSize(c->db->dict));
 }
 
-void lastsaveCommand(redisClient *c) {
+void lastsaveCommand(redisClient *c) {//数据库上次保存时间
     addReplyLongLong(c,server.lastsave);
 }
 
@@ -620,7 +620,7 @@ void typeCommand(redisClient *c) {
     robj *o;
     char *type;
 
-    o = lookupKeyRead(c->db,c->argv[1]);
+    o = lookupKeyRead(c->db,c->argv[1]);//得到值
     if (o == NULL) {
         type = "none";
     } else {
@@ -633,7 +633,7 @@ void typeCommand(redisClient *c) {
         default: type = "unknown"; break;
         }
     }
-    addReplyStatus(c,type);
+    addReplyStatus(c,type);//返回类型
 }
 
 void shutdownCommand(redisClient *c) {
@@ -658,9 +658,9 @@ void shutdownCommand(redisClient *c) {
      * with half-read data).
      *
      * Also when in Sentinel mode clear the SAVE flag and force NOSAVE. */
-    if (server.loading || server.sentinel_mode)
+    if (server.loading || server.sentinel_mode)//在加载数据时关闭不保存数据
         flags = (flags & ~REDIS_SHUTDOWN_SAVE) | REDIS_SHUTDOWN_NOSAVE;
-    if (prepareForShutdown(flags) == REDIS_OK) exit(0);
+    if (prepareForShutdown(flags) == REDIS_OK) exit(0);//关闭redis
     addReplyError(c,"Errors trying to SHUTDOWN. Check logs.");
 }
 
@@ -669,17 +669,17 @@ void renameGenericCommand(redisClient *c, int nx) {
     long long expire;
 
     /* To use the same key as src and dst is probably an error */
-    if (sdscmp(c->argv[1]->ptr,c->argv[2]->ptr) == 0) {
+    if (sdscmp(c->argv[1]->ptr,c->argv[2]->ptr) == 0) {//名字相同
         addReply(c,shared.sameobjecterr);
         return;
     }
 
-    if ((o = lookupKeyWriteOrReply(c,c->argv[1],shared.nokeyerr)) == NULL)
+    if ((o = lookupKeyWriteOrReply(c,c->argv[1],shared.nokeyerr)) == NULL)//查找key，取值
         return;
 
     incrRefCount(o);
-    expire = getExpire(c->db,c->argv[1]);
-    if (lookupKeyWrite(c->db,c->argv[2]) != NULL) {
+    expire = getExpire(c->db,c->argv[1]);//是否过期
+    if (lookupKeyWrite(c->db,c->argv[2]) != NULL) {//已存在
         if (nx) {
             decrRefCount(o);
             addReply(c,shared.czero);
@@ -687,12 +687,12 @@ void renameGenericCommand(redisClient *c, int nx) {
         }
         /* Overwrite: delete the old key before creating the new one
          * with the same name. */
-        dbDelete(c->db,c->argv[2]);
+        dbDelete(c->db,c->argv[2]);//删除
     }
-    dbAdd(c->db,c->argv[2],o);
-    if (expire != -1) setExpire(c->db,c->argv[2],expire);
-    dbDelete(c->db,c->argv[1]);
-    signalModifiedKey(c->db,c->argv[1]);
+    dbAdd(c->db,c->argv[2],o);//增加键值
+    if (expire != -1) setExpire(c->db,c->argv[2],expire);//设置过期时间
+    dbDelete(c->db,c->argv[1]);//删除原键值
+    signalModifiedKey(c->db,c->argv[1]);//通知键修改
     signalModifiedKey(c->db,c->argv[2]);
     notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"rename_from",
         c->argv[1],c->db->id);
@@ -716,7 +716,7 @@ void moveCommand(redisClient *c) {
     int srcid;
     long long dbid, expire;
 
-    if (server.cluster_enabled) {
+    if (server.cluster_enabled) {//开启集群不允许移动
         addReplyError(c,"MOVE is not allowed in cluster mode");
         return;
     }
@@ -732,35 +732,35 @@ void moveCommand(redisClient *c) {
         addReply(c,shared.outofrangeerr);
         return;
     }
-    dst = c->db;
+    dst = c->db;//选择数据库
     selectDb(c,srcid); /* Back to the source DB */
 
     /* If the user is moving using as target the same
      * DB as the source DB it is probably an error. */
-    if (src == dst) {
+    if (src == dst) {//源数据库和目标数据库一致
         addReply(c,shared.sameobjecterr);
         return;
     }
 
     /* Check if the element exists and get a reference */
-    o = lookupKeyWrite(c->db,c->argv[1]);
+    o = lookupKeyWrite(c->db,c->argv[1]);//在源数据库寻找键
     if (!o) {
         addReply(c,shared.czero);
         return;
     }
-    expire = getExpire(c->db,c->argv[1]);
+    expire = getExpire(c->db,c->argv[1]);//过期时间
 
     /* Return zero if the key already exists in the target DB */
-    if (lookupKeyWrite(dst,c->argv[1]) != NULL) {
+    if (lookupKeyWrite(dst,c->argv[1]) != NULL) {//目标数据库中查找键
         addReply(c,shared.czero);
         return;
     }
-    dbAdd(dst,c->argv[1],o);
-    if (expire != -1) setExpire(dst,c->argv[1],expire);
+    dbAdd(dst,c->argv[1],o);//目标数据库增加键值
+    if (expire != -1) setExpire(dst,c->argv[1],expire);//设置过期时间
     incrRefCount(o);
 
     /* OK! key moved, free the entry in the source DB */
-    dbDelete(src,c->argv[1]);
+    dbDelete(src,c->argv[1]);//删除键
     server.dirty++;
     addReply(c,shared.cone);
 }
@@ -769,7 +769,7 @@ void moveCommand(redisClient *c) {
  * Expires API
  *----------------------------------------------------------------------------*/
 
-int removeExpire(redisDb *db, robj *key) {
+int removeExpire(redisDb *db, robj *key) {//从过期字典中删除
     /* An expire may only be removed if there is a corresponding entry in the
      * main dict. Otherwise, the key will never be freed. */
     redisAssertWithInfo(NULL,key,dictFind(db->dict,key->ptr) != NULL);
@@ -780,10 +780,10 @@ void setExpire(redisDb *db, robj *key, long long when) {
     dictEntry *kde, *de;
 
     /* Reuse the sds from the main dict in the expire dict */
-    kde = dictFind(db->dict,key->ptr);
+    kde = dictFind(db->dict,key->ptr);//找到键
     redisAssertWithInfo(NULL,key,kde != NULL);
-    de = dictReplaceRaw(db->expires,dictGetKey(kde));
-    dictSetSignedIntegerVal(de,when);
+    de = dictReplaceRaw(db->expires,dictGetKey(kde));//在过期字典中找到改键的桶
+    dictSetSignedIntegerVal(de,when);//设置过期时间
 }
 
 /* Return the expire time of the specified key, or -1 if no expire
@@ -876,14 +876,14 @@ void expireGenericCommand(redisClient *c, long long basetime, int unit) {
     robj *key = c->argv[1], *param = c->argv[2];
     long long when; /* unix time in milliseconds when the key will expire. */
 
-    if (getLongLongFromObjectOrReply(c, param, &when, NULL) != REDIS_OK)
+    if (getLongLongFromObjectOrReply(c, param, &when, NULL) != REDIS_OK)//设置过期时间
         return;
 
     if (unit == UNIT_SECONDS) when *= 1000;
     when += basetime;
 
     /* No key, return zero. */
-    if (lookupKeyRead(c->db,key) == NULL) {
+    if (lookupKeyRead(c->db,key) == NULL) {//查找键是否存在
         addReply(c,shared.czero);
         return;
     }
@@ -894,7 +894,7 @@ void expireGenericCommand(redisClient *c, long long basetime, int unit) {
      *
      * Instead we take the other branch of the IF statement setting an expire
      * (possibly in the past) and wait for an explicit DEL from the master. */
-    if (when <= mstime() && !server.loading && !server.masterhost) {
+    if (when <= mstime() && !server.loading && !server.masterhost) {//过去的时间
         robj *aux;
 
         redisAssertWithInfo(c,key,dbDelete(c->db,key));
@@ -902,17 +902,17 @@ void expireGenericCommand(redisClient *c, long long basetime, int unit) {
 
         /* Replicate/AOF this as an explicit DEL. */
         aux = createStringObject("DEL",3);
-        rewriteClientCommandVector(c,2,aux,key);
+        rewriteClientCommandVector(c,2,aux,key);//修改客户端命令
         decrRefCount(aux);
         signalModifiedKey(c->db,key);
-        notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"del",key,c->db->id);
+        notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"del",key,c->db->id);//发布删除命令
         addReply(c, shared.cone);
         return;
     } else {
         setExpire(c->db,key,when);
         addReply(c,shared.cone);
         signalModifiedKey(c->db,key);
-        notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"expire",key,c->db->id);
+        notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"expire",key,c->db->id);//发布设置过期命令
         server.dirty++;
         return;
     }
@@ -934,19 +934,19 @@ void pexpireatCommand(redisClient *c) {
     expireGenericCommand(c,0,UNIT_MILLISECONDS);
 }
 
-void ttlGenericCommand(redisClient *c, int output_ms) {
+void ttlGenericCommand(redisClient *c, int output_ms) {//剩余生存时间
     long long expire, ttl = -1;
 
     /* If the key does not exist at all, return -2 */
-    if (lookupKeyRead(c->db,c->argv[1]) == NULL) {
+    if (lookupKeyRead(c->db,c->argv[1]) == NULL) {//键是否存在
         addReplyLongLong(c,-2);
         return;
     }
     /* The key exists. Return -1 if it has no expire, or the actual
      * TTL value otherwise. */
-    expire = getExpire(c->db,c->argv[1]);
+    expire = getExpire(c->db,c->argv[1]);//得到过期时间
     if (expire != -1) {
-        ttl = expire-mstime();
+        ttl = expire-mstime();//过期时间与当前时间相减
         if (ttl < 0) ttl = 0;
     }
     if (ttl == -1) {
@@ -971,7 +971,7 @@ void persistCommand(redisClient *c) {
     if (de == NULL) {
         addReply(c,shared.czero);
     } else {
-        if (removeExpire(c->db,c->argv[1])) {
+        if (removeExpire(c->db,c->argv[1])) {//移除过期时间
             addReply(c,shared.cone);
             server.dirty++;
         } else {
@@ -999,7 +999,7 @@ int *getKeysUsingCommandTable(struct redisCommand *cmd,robj **argv, int argc, in
     keys = zmalloc(sizeof(int)*((last - cmd->firstkey)+1));
     for (j = cmd->firstkey; j <= last; j += cmd->keystep) {
         redisAssert(j < argc);
-        keys[i++] = j;
+        keys[i++] = j;//返回键值在参数数组中的下标
     }
     *numkeys = i;
     return keys;
@@ -1039,7 +1039,7 @@ int *zunionInterGetKeys(struct redisCommand *cmd, robj **argv, int argc, int *nu
     num = atoi(argv[2]->ptr);
     /* Sanity check. Don't return any key if the command is going to
      * reply with syntax error. */
-    if (num > (argc-3)) {
+    if (num > (argc-3)) {//个数不对
         *numkeys = 0;
         return NULL;
     }
@@ -1047,13 +1047,13 @@ int *zunionInterGetKeys(struct redisCommand *cmd, robj **argv, int argc, int *nu
     /* Keys in z{union,inter}store come from two places:
      * argv[1] = storage key,
      * argv[3...n] = keys to intersect */
-    keys = zmalloc(sizeof(int)*(num+1));
+    keys = zmalloc(sizeof(int)*(num+1));//分配空间
 
     /* Add all key positions for argv[3...n] to keys[] */
     for (i = 0; i < num; i++) keys[i] = 3+i;
 
     /* Finally add the argv[1] key position (the storage key target). */
-    keys[num] = 1;
+    keys[num] = 1;//目标key
     *numkeys = num+1;  /* Total keys = {union,inter} keys + storage key */
     return keys;
 }
@@ -1106,18 +1106,18 @@ int *sortGetKeys(struct redisCommand *cmd, robj **argv, int argc, int *numkeys) 
         char *name;
         int skip;
     } skiplist[] = {
-        {"limit", 2},
-        {"get", 1},
-        {"by", 1},
+        {"limit", 2},//跳过offset，count
+        {"get", 1},//得到返回值
+        {"by", 1},//依据其他字段排序
         {NULL, 0} /* End of elements. */
     };
 
     for (i = 2; i < argc; i++) {
         for (j = 0; skiplist[j].name != NULL; j++) {
             if (!strcasecmp(argv[i]->ptr,skiplist[j].name)) {
-                i += skiplist[j].skip;
+                i += skiplist[j].skip;//跳过对应的参数
                 break;
-            } else if (!strcasecmp(argv[i]->ptr,"store") && i+1 < argc) {
+            } else if (!strcasecmp(argv[i]->ptr,"store") && i+1 < argc) {//将排序结果保存到对应的键上
                 /* Note: we don't increment "num" here and continue the loop
                  * to be sure to process the *last* "STORE" option if multiple
                  * ones are provided. This is same behavior as SORT. */
@@ -1162,19 +1162,19 @@ int *migrateGetKeys(struct redisCommand *cmd, robj **argv, int argc, int *numkey
  * a fast way a key that belongs to a specified hash slot. This is useful
  * while rehashing the cluster. */
 void slotToKeyAdd(robj *key) {
-    unsigned int hashslot = keyHashSlot(key->ptr,sdslen(key->ptr));
+    unsigned int hashslot = keyHashSlot(key->ptr,sdslen(key->ptr));//计算出所属的槽
 
-    zslInsert(server.cluster->slots_to_keys,hashslot,key);
+    zslInsert(server.cluster->slots_to_keys,hashslot,key);//插入到跳跃表
     incrRefCount(key);
 }
 
-void slotToKeyDel(robj *key) {
+void slotToKeyDel(robj *key) {//从槽中删除给定的键
     unsigned int hashslot = keyHashSlot(key->ptr,sdslen(key->ptr));
 
     zslDelete(server.cluster->slots_to_keys,hashslot,key);
 }
 
-void slotToKeyFlush(void) {
+void slotToKeyFlush(void) {//清空
     zslFree(server.cluster->slots_to_keys);
     server.cluster->slots_to_keys = zslCreate();
 }

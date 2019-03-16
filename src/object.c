@@ -50,7 +50,7 @@ robj *createObject(int type, void *ptr) {
 
 /* Create a string object with encoding REDIS_ENCODING_RAW, that is a plain
  * string object where o->ptr points to a proper sds string. */
-robj *createRawStringObject(char *ptr, size_t len) {
+robj *createRawStringObject(char *ptr, size_t len) {//不包含redisobject
     return createObject(REDIS_STRING,sdsnewlen(ptr,len));
 }
 

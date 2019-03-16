@@ -49,24 +49,24 @@ int stringmatchlen(const char *pattern, int patternLen,
 {
     while(patternLen) {
         switch(pattern[0]) {
-        case '*':
-            while (pattern[1] == '*') {
+        case '*'://首字母是*
+            while (pattern[1] == '*') {//跳过接下来的*
                 pattern++;
                 patternLen--;
             }
-            if (patternLen == 1)
+            if (patternLen == 1)//只有一个*
                 return 1; /* match */
-            while(stringLen) {
+            while(stringLen) {//将*去掉之后再匹配
                 if (stringmatchlen(pattern+1, patternLen-1,
                             string, stringLen, nocase))
                     return 1; /* match */
-                string++;
+                string++;//第一个字母起不匹配，从下一个字母进行匹配
                 stringLen--;
             }
             return 0; /* no match */
             break;
         case '?':
-            if (stringLen == 0)
+            if (stringLen == 0)//所有字符开始都不匹配
                 return 0; /* no match */
             string++;
             stringLen--;
@@ -77,47 +77,47 @@ int stringmatchlen(const char *pattern, int patternLen,
 
             pattern++;
             patternLen--;
-            not = pattern[0] == '^';
+            not = pattern[0] == '^';//不接受中括号中的字符
             if (not) {
                 pattern++;
                 patternLen--;
             }
             match = 0;
             while(1) {
-                if (pattern[0] == '\\') {
+                if (pattern[0] == '\\') {//匹配'\?'等类似的转义字符
                     pattern++;
                     patternLen--;
-                    if (pattern[0] == string[0])
+                    if (pattern[0] == string[0])//相等
                         match = 1;
-                } else if (pattern[0] == ']') {
+                } else if (pattern[0] == ']') {//中括号结束
                     break;
-                } else if (patternLen == 0) {
+                } else if (patternLen == 0) {//模式字符串结束
                     pattern--;
                     patternLen++;
                     break;
-                } else if (pattern[1] == '-' && patternLen >= 3) {
+                } else if (pattern[1] == '-' && patternLen >= 3) {//[0-9]匹配数字
                     int start = pattern[0];
                     int end = pattern[2];
                     int c = string[0];
-                    if (start > end) {
+                    if (start > end) {//转换大小
                         int t = start;
                         start = end;
                         end = t;
                     }
-                    if (nocase) {
+                    if (nocase) {//不区分大小写
                         start = tolower(start);
                         end = tolower(end);
                         c = tolower(c);
                     }
                     pattern += 2;
                     patternLen -= 2;
-                    if (c >= start && c <= end)
+                    if (c >= start && c <= end)//在范围内
                         match = 1;
                 } else {
-                    if (!nocase) {
+                    if (!nocase) {//区分大小写
                         if (pattern[0] == string[0])
                             match = 1;
-                    } else {
+                    } else {//不区分大小写
                         if (tolower((int)pattern[0]) == tolower((int)string[0]))
                             match = 1;
                     }
@@ -125,7 +125,7 @@ int stringmatchlen(const char *pattern, int patternLen,
                 pattern++;
                 patternLen--;
             }
-            if (not)
+            if (not)//^反转
                 match = !match;
             if (!match)
                 return 0; /* no match */
@@ -134,13 +134,13 @@ int stringmatchlen(const char *pattern, int patternLen,
             break;
         }
         case '\\':
-            if (patternLen >= 2) {
+            if (patternLen >= 2) {//匹配转义字符
                 pattern++;
                 patternLen--;
             }
             /* fall through */
         default:
-            if (!nocase) {
+            if (!nocase) {//区分大小写
                 if (pattern[0] != string[0])
                     return 0; /* no match */
             } else {
@@ -161,7 +161,7 @@ int stringmatchlen(const char *pattern, int patternLen,
             break;
         }
     }
-    if (patternLen == 0 && stringLen == 0)
+    if (patternLen == 0 && stringLen == 0)//匹配成功
         return 1;
     return 0;
 }
