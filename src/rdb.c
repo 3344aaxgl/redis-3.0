@@ -41,7 +41,7 @@
 #include <sys/stat.h>
 
 static int rdbWriteRaw(rio *rdb, void *p, size_t len) {
-    if (rdb && rioWrite(rdb,p,len) == 0)
+    if (rdb && rioWrite(rdb,p,len) == 0)//写数据
         return -1;
     return len;
 }
@@ -53,13 +53,13 @@ int rdbSaveType(rio *rdb, unsigned char type) {
 /* Load a "type" in RDB format, that is a one byte unsigned integer.
  * This function is not only used to load object types, but also special
  * "types" like the end-of-file type, the EXPIRE type, and so forth. */
-int rdbLoadType(rio *rdb) {
+int rdbLoadType(rio *rdb) {//读取类型字段
     unsigned char type;
     if (rioRead(rdb,&type,1) == 0) return -1;
     return type;
 }
 
-time_t rdbLoadTime(rio *rdb) {
+time_t rdbLoadTime(rio *rdb) {//读取时间
     int32_t t32;
     if (rioRead(rdb,&t32,4) == 0) return -1;
     return (time_t)t32;
@@ -83,22 +83,22 @@ int rdbSaveLen(rio *rdb, uint32_t len) {
     unsigned char buf[2];
     size_t nwritten;
 
-    if (len < (1<<6)) {
+    if (len < (1<<6)) {//小于64
         /* Save a 6 bit len */
-        buf[0] = (len&0xFF)|(REDIS_RDB_6BITLEN<<6);
+        buf[0] = (len&0xFF)|(REDIS_RDB_6BITLEN<<6);//第二位是0
         if (rdbWriteRaw(rdb,buf,1) == -1) return -1;
         nwritten = 1;
     } else if (len < (1<<14)) {
         /* Save a 14 bit len */
-        buf[0] = ((len>>8)&0xFF)|(REDIS_RDB_14BITLEN<<6);
-        buf[1] = len&0xFF;
+        buf[0] = ((len>>8)&0xFF)|(REDIS_RDB_14BITLEN<<6);//第二位是1
+        buf[1] = len&0xFF;//保存后8位
         if (rdbWriteRaw(rdb,buf,2) == -1) return -1;
         nwritten = 2;
     } else {
         /* Save a 32 bit len */
-        buf[0] = (REDIS_RDB_32BITLEN<<6);
+        buf[0] = (REDIS_RDB_32BITLEN<<6);//前2位为10
         if (rdbWriteRaw(rdb,buf,1) == -1) return -1;
-        len = htonl(len);
+        len = htonl(len);//大端
         if (rdbWriteRaw(rdb,&len,4) == -1) return -1;
         nwritten = 1+4;
     }
@@ -108,7 +108,7 @@ int rdbSaveLen(rio *rdb, uint32_t len) {
 /* Load an encoded length. The "isencoded" argument is set to 1 if the length
  * is not actually a length but an "encoding type". See the REDIS_RDB_ENC_*
  * definitions in rdb.h for more information. */
-uint32_t rdbLoadLen(rio *rdb, int *isencoded) {
+uint32_t rdbLoadLen(rio *rdb, int *isencoded) {//读取长度
     unsigned char buf[2];
     uint32_t len;
     int type;

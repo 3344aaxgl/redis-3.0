@@ -33,7 +33,7 @@
  * Pubsub low level API
  *----------------------------------------------------------------------------*/
 
-void freePubsubPattern(void *p) {
+void freePubsubPattern(void *p) {//释放发布类型
     pubsubPattern *pat = p;
 
     decrRefCount(pat->pattern);
@@ -61,19 +61,19 @@ int pubsubSubscribeChannel(redisClient *c, robj *channel) {
     int retval = 0;
 
     /* Add the channel to the client -> channels hash table */
-    if (dictAdd(c->pubsub_channels,channel,NULL) == DICT_OK) {
+    if (dictAdd(c->pubsub_channels,channel,NULL) == DICT_OK) {//添加频道到客户端字典中
         retval = 1;
         incrRefCount(channel);
         /* Add the client to the channel -> list of clients hash table */
         de = dictFind(server.pubsub_channels,channel);
-        if (de == NULL) {
+        if (de == NULL) {//对应的桶为空
             clients = listCreate();
-            dictAdd(server.pubsub_channels,channel,clients);
+            dictAdd(server.pubsub_channels,channel,clients);//增加服务器端字典上
             incrRefCount(channel);
         } else {
             clients = dictGetVal(de);
         }
-        listAddNodeTail(clients,c);
+        listAddNodeTail(clients,c);//将客户端添加到链表上
     }
     /* Notify the client */
     addReply(c,shared.mbulkhdr[3]);
@@ -94,16 +94,16 @@ int pubsubUnsubscribeChannel(redisClient *c, robj *channel, int notify) {
     /* Remove the channel from the client -> channels hash table */
     incrRefCount(channel); /* channel may be just a pointer to the same object
                             we have in the hash tables. Protect it... */
-    if (dictDelete(c->pubsub_channels,channel) == DICT_OK) {
+    if (dictDelete(c->pubsub_channels,channel) == DICT_OK) {//从客户端频道字典中删除
         retval = 1;
         /* Remove the client from the channel -> clients list hash table */
-        de = dictFind(server.pubsub_channels,channel);
+        de = dictFind(server.pubsub_channels,channel);//在服务器端字典查找频道
         redisAssertWithInfo(c,NULL,de != NULL);
-        clients = dictGetVal(de);
-        ln = listSearchKey(clients,c);
+        clients = dictGetVal(de);//得到监听客户端列表
+        ln = listSearchKey(clients,c);//寻找客户端
         redisAssertWithInfo(c,NULL,ln != NULL);
-        listDelNode(clients,ln);
-        if (listLength(clients) == 0) {
+        listDelNode(clients,ln);//删除
+        if (listLength(clients) == 0) {//监听客户端为0，删除频道
             /* Free the list and associated hash entry at all if this was
              * the latest client, so that it will be possible to abuse
              * Redis PUBSUB creating millions of channels. */
@@ -111,7 +111,7 @@ int pubsubUnsubscribeChannel(redisClient *c, robj *channel, int notify) {
         }
     }
     /* Notify the client */
-    if (notify) {
+    if (notify) {//通知客户端
         addReply(c,shared.mbulkhdr[3]);
         addReply(c,shared.unsubscribebulk);
         addReplyBulk(c,channel);
@@ -175,7 +175,7 @@ int pubsubUnsubscribePattern(redisClient *c, robj *pattern, int notify) {
 
 /* Unsubscribe from all the channels. Return the number of channels the
  * client was subscribed to. */
-int pubsubUnsubscribeAllChannels(redisClient *c, int notify) {
+int pubsubUnsubscribeAllChannels(redisClient *c, int notify) {//取消监听所有频道
     dictIterator *di = dictGetSafeIterator(c->pubsub_channels);
     dictEntry *de;
     int count = 0;
@@ -199,7 +199,7 @@ int pubsubUnsubscribeAllChannels(redisClient *c, int notify) {
 
 /* Unsubscribe from all the patterns. Return the number of patterns the
  * client was subscribed from. */
-int pubsubUnsubscribeAllPatterns(redisClient *c, int notify) {
+int pubsubUnsubscribeAllPatterns(redisClient *c, int notify) {//取消监听所有模式
     listNode *ln;
     listIter li;
     int count = 0;
@@ -231,12 +231,12 @@ int pubsubPublishMessage(robj *channel, robj *message) {
     /* Send to clients listening for that channel */
     de = dictFind(server.pubsub_channels,channel);
     if (de) {
-        list *list = dictGetVal(de);
+        list *list = dictGetVal(de);//找到监听客户端列表
         listNode *ln;
         listIter li;
 
         listRewind(list,&li);
-        while ((ln = listNext(&li)) != NULL) {
+        while ((ln = listNext(&li)) != NULL) {//遍历列表，发送消息
             redisClient *c = ln->value;
 
             addReply(c,shared.mbulkhdr[3]);
@@ -247,7 +247,7 @@ int pubsubPublishMessage(robj *channel, robj *message) {
         }
     }
     /* Send to clients listening to matching channels */
-    if (listLength(server.pubsub_patterns)) {
+    if (listLength(server.pubsub_patterns)) {//
         listRewind(server.pubsub_patterns,&li);
         channel = getDecodedObject(channel);
         while ((ln = listNext(&li)) != NULL) {
@@ -336,7 +336,7 @@ void pubsubCommand(redisClient *c) {
         void *replylen;
 
         replylen = addDeferredMultiBulkLength(c);
-        while((de = dictNext(di)) != NULL) {
+        while((de = dictNext(di)) != NULL) {//返回模式匹配的频道
             robj *cobj = dictGetKey(de);
             sds channel = cobj->ptr;
 

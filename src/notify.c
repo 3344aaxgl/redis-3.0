@@ -37,7 +37,7 @@
  *
  * The function returns -1 if the input contains characters not mapping to
  * any class. */
-int keyspaceEventsStringToFlags(char *classes) {
+int keyspaceEventsStringToFlags(char *classes) {//事件映射
     char *p = classes;
     int c, flags = 0;
 
@@ -99,7 +99,7 @@ void notifyKeyspaceEvent(int type, char *event, robj *key, int dbid) {
     char buf[24];
 
     /* If notifications for this class of events are off, return ASAP. */
-    if (!(server.notify_keyspace_events & type)) return;
+    if (!(server.notify_keyspace_events & type)) return;//该消息类型不通知
 
     eventobj = createStringObject(event,strlen(event));
 
