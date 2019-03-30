@@ -139,8 +139,8 @@ uint32_t rdbLoadLen(rio *rdb, int *isencoded) {//读取长度
  * representation is stored in the buffer pointer to by "enc" and the string
  * length is returned. Otherwise 0 is returned. */
 int rdbEncodeInteger(long long value, unsigned char *enc) {
-    if (value >= -(1<<7) && value <= (1<<7)-1) {
-        enc[0] = (REDIS_RDB_ENCVAL<<6)|REDIS_RDB_ENC_INT8;
+    if (value >= -(1<<7) && value <= (1<<7)-1) {//-128~127
+        enc[0] = (REDIS_RDB_ENCVAL<<6)|REDIS_RDB_ENC_INT8;//第一个字节存储类型
         enc[1] = value&0xFF;
         return 2;
     } else if (value >= -(1<<15) && value <= (1<<15)-1) {
@@ -148,7 +148,7 @@ int rdbEncodeInteger(long long value, unsigned char *enc) {
         enc[1] = value&0xFF;
         enc[2] = (value>>8)&0xFF;
         return 3;
-    } else if (value >= -((long long)1<<31) && value <= ((long long)1<<31)-1) {
+    } else if (value >= -((long long)1<<31) && value <= ((long long)1<<31)-1) {//小端存储
         enc[0] = (REDIS_RDB_ENCVAL<<6)|REDIS_RDB_ENC_INT32;
         enc[1] = value&0xFF;
         enc[2] = (value>>8)&0xFF;
@@ -163,7 +163,7 @@ int rdbEncodeInteger(long long value, unsigned char *enc) {
 /* Loads an integer-encoded object with the specified encoding type "enctype".
  * If the "encode" argument is set the function may return an integer-encoded
  * string object, otherwise it always returns a raw string object. */
-robj *rdbLoadIntegerObject(rio *rdb, int enctype, int encode) {
+robj *rdbLoadIntegerObject(rio *rdb, int enctype, int encode) {//读取int并转成对象
     unsigned char enc[4];
     long long val;
 
@@ -200,13 +200,13 @@ int rdbTryIntegerEncoding(char *s, size_t len, unsigned char *enc) {
     /* Check if it's possible to encode this value as a number */
     value = strtoll(s, &endptr, 10);
     if (endptr[0] != '\0') return 0;
-    ll2string(buf,32,value);
+    ll2string(buf,32,value);//longlong转string，每次转两位
 
     /* If the number converted back into a string is not identical
      * then it's not possible to encode the string as integer */
-    if (strlen(buf) != len || memcmp(buf,s,len)) return 0;
+    if (strlen(buf) != len || memcmp(buf,s,len)) return 0;//转成数字失败
 
-    return rdbEncodeInteger(value,enc);
+    return rdbEncodeInteger(value,enc);//编码int
 }
 
 int rdbSaveLzfStringObject(rio *rdb, unsigned char *s, size_t len) {
@@ -219,26 +219,26 @@ int rdbSaveLzfStringObject(rio *rdb, unsigned char *s, size_t len) {
     if (len <= 4) return 0;
     outlen = len-4;
     if ((out = zmalloc(outlen+1)) == NULL) return 0;
-    comprlen = lzf_compress(s, len, out, outlen);
+    comprlen = lzf_compress(s, len, out, outlen);//压缩
     if (comprlen == 0) {
         zfree(out);
         return 0;
     }
     /* Data compressed! Let's save it on disk */
-    byte = (REDIS_RDB_ENCVAL<<6)|REDIS_RDB_ENC_LZF;
-    if ((n = rdbWriteRaw(rdb,&byte,1)) == -1) goto writeerr;
+    byte = (REDIS_RDB_ENCVAL<<6)|REDIS_RDB_ENC_LZF;//类型为压缩数据
+    if ((n = rdbWriteRaw(rdb,&byte,1)) == -1) goto writeerr;//写类型
     nwritten += n;
 
-    if ((n = rdbSaveLen(rdb,comprlen)) == -1) goto writeerr;
+    if ((n = rdbSaveLen(rdb,comprlen)) == -1) goto writeerr;//保存压缩数据长度
     nwritten += n;
 
-    if ((n = rdbSaveLen(rdb,len)) == -1) goto writeerr;
+    if ((n = rdbSaveLen(rdb,len)) == -1) goto writeerr;//保存压缩前数据长度
     nwritten += n;
 
-    if ((n = rdbWriteRaw(rdb,out,comprlen)) == -1) goto writeerr;
+    if ((n = rdbWriteRaw(rdb,out,comprlen)) == -1) goto writeerr;//写入压缩数据
     nwritten += n;
 
-    zfree(out);
+    zfree(out);//释放空间
     return nwritten;
 
 writeerr:
@@ -246,7 +246,7 @@ writeerr:
     return -1;
 }
 
-robj *rdbLoadLzfStringObject(rio *rdb) {
+robj *rdbLoadLzfStringObject(rio *rdb) {//读取数据
     unsigned int len, clen;
     unsigned char *c = NULL;
     sds val = NULL;
@@ -256,7 +256,7 @@ robj *rdbLoadLzfStringObject(rio *rdb) {
     if ((c = zmalloc(clen)) == NULL) goto err;
     if ((val = sdsnewlen(NULL,len)) == NULL) goto err;
     if (rioRead(rdb,c,clen) == 0) goto err;
-    if (lzf_decompress(c,clen,val,len) == 0) goto err;
+    if (lzf_decompress(c,clen,val,len) == 0) goto err;//解压数据
     zfree(c);
     return createObject(REDIS_STRING,val);
 err:
@@ -272,7 +272,7 @@ int rdbSaveRawString(rio *rdb, unsigned char *s, size_t len) {
     int n, nwritten = 0;
 
     /* Try integer encoding */
-    if (len <= 11) {
+    if (len <= 11) {//尝试数字编码
         unsigned char buf[5];
         if ((enclen = rdbTryIntegerEncoding((char*)s,len,buf)) > 0) {
             if (rdbWriteRaw(rdb,buf,enclen) == -1) return -1;
@@ -282,7 +282,7 @@ int rdbSaveRawString(rio *rdb, unsigned char *s, size_t len) {
 
     /* Try LZF compression - under 20 bytes it's unable to compress even
      * aaaaaaaaaaaaaaaaaa so skip it */
-    if (server.rdb_compression && len > 20) {
+    if (server.rdb_compression && len > 20) {//大于20字节，尝试lzf压缩
         n = rdbSaveLzfStringObject(rdb,s,len);
         if (n == -1) return -1;
         if (n > 0) return n;
@@ -290,10 +290,10 @@ int rdbSaveRawString(rio *rdb, unsigned char *s, size_t len) {
     }
 
     /* Store verbatim */
-    if ((n = rdbSaveLen(rdb,len)) == -1) return -1;
+    if ((n = rdbSaveLen(rdb,len)) == -1) return -1;//保存长度
     nwritten += n;
     if (len > 0) {
-        if (rdbWriteRaw(rdb,s,len) == -1) return -1;
+        if (rdbWriteRaw(rdb,s,len) == -1) return -1;//保存数据
         nwritten += len;
     }
     return nwritten;

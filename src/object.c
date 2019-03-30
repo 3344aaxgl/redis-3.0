@@ -44,7 +44,7 @@ robj *createObject(int type, void *ptr) {
     o->refcount = 1;
 
     /* Set the LRU to the current lruclock (minutes resolution). */
-    o->lru = LRU_CLOCK();
+    o->lru = LRU_CLOCK();//设置过期时间
     return o;
 }
 
@@ -94,16 +94,16 @@ robj *createStringObject(char *ptr, size_t len) {
 
 robj *createStringObjectFromLongLong(long long value) {
     robj *o;
-    if (value >= 0 && value < REDIS_SHARED_INTEGERS) {
+    if (value >= 0 && value < REDIS_SHARED_INTEGERS) {//0~10000使用共享对象
         incrRefCount(shared.integers[value]);
         o = shared.integers[value];
     } else {
-        if (value >= LONG_MIN && value <= LONG_MAX) {
+        if (value >= LONG_MIN && value <= LONG_MAX) {//超过long的范围
             o = createObject(REDIS_STRING, NULL);
             o->encoding = REDIS_ENCODING_INT;
             o->ptr = (void*)((long)value);
         } else {
-            o = createObject(REDIS_STRING,sdsfromlonglong(value));
+            o = createObject(REDIS_STRING,sdsfromlonglong(value));//创建longlong对象
         }
     }
     return o;
