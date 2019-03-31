@@ -46,7 +46,7 @@ static int rdbWriteRaw(rio *rdb, void *p, size_t len) {
     return len;
 }
 
-int rdbSaveType(rio *rdb, unsigned char type) {
+int rdbSaveType(rio *rdb, unsigned char type) {//保存数据类型
     return rdbWriteRaw(rdb,&type,1);
 }
 
@@ -303,67 +303,67 @@ int rdbSaveRawString(rio *rdb, unsigned char *s, size_t len) {
 int rdbSaveLongLongAsStringObject(rio *rdb, long long value) {
     unsigned char buf[32];
     int n, nwritten = 0;
-    int enclen = rdbEncodeInteger(value,buf);
+    int enclen = rdbEncodeInteger(value,buf);//数字编码
     if (enclen > 0) {
         return rdbWriteRaw(rdb,buf,enclen);
     } else {
         /* Encode as string */
-        enclen = ll2string((char*)buf,32,value);
+        enclen = ll2string((char*)buf,32,value);//转成字符串
         redisAssert(enclen < 32);
-        if ((n = rdbSaveLen(rdb,enclen)) == -1) return -1;
+        if ((n = rdbSaveLen(rdb,enclen)) == -1) return -1;//保存长度
         nwritten += n;
-        if ((n = rdbWriteRaw(rdb,buf,enclen)) == -1) return -1;
+        if ((n = rdbWriteRaw(rdb,buf,enclen)) == -1) return -1;//保存数据
         nwritten += n;
     }
     return nwritten;
 }
 
 /* Like rdbSaveStringObjectRaw() but handle encoded objects */
-int rdbSaveStringObject(rio *rdb, robj *obj) {
+int rdbSaveStringObject(rio *rdb, robj *obj) {//保存对象
     /* Avoid to decode the object, then encode it again, if the
      * object is already integer encoded. */
-    if (obj->encoding == REDIS_ENCODING_INT) {
+    if (obj->encoding == REDIS_ENCODING_INT) {//已经是int编码
         return rdbSaveLongLongAsStringObject(rdb,(long)obj->ptr);
     } else {
         redisAssertWithInfo(NULL,obj,sdsEncodedObject(obj));
-        return rdbSaveRawString(rdb,obj->ptr,sdslen(obj->ptr));
+        return rdbSaveRawString(rdb,obj->ptr,sdslen(obj->ptr));//编码成数字或字符串进行保存
     }
 }
 
-robj *rdbGenericLoadStringObject(rio *rdb, int encode) {
+robj *rdbGenericLoadStringObject(rio *rdb, int encode) {//读取数据
     int isencoded;
     uint32_t len;
     robj *o;
 
-    len = rdbLoadLen(rdb,&isencoded);
+    len = rdbLoadLen(rdb,&isencoded);//获取长度，及是否编码
     if (isencoded) {
         switch(len) {
         case REDIS_RDB_ENC_INT8:
         case REDIS_RDB_ENC_INT16:
         case REDIS_RDB_ENC_INT32:
-            return rdbLoadIntegerObject(rdb,len,encode);
+            return rdbLoadIntegerObject(rdb,len,encode);//读取数字
         case REDIS_RDB_ENC_LZF:
-            return rdbLoadLzfStringObject(rdb);
+            return rdbLoadLzfStringObject(rdb);//读取压缩数据
         default:
             redisPanic("Unknown RDB encoding type");
         }
     }
-
+    //未编码
     if (len == REDIS_RDB_LENERR) return NULL;
     o = encode ? createStringObject(NULL,len) :
                  createRawStringObject(NULL,len);
-    if (len && rioRead(rdb,o->ptr,len) == 0) {
+    if (len && rioRead(rdb,o->ptr,len) == 0) {//读取数据
         decrRefCount(o);
         return NULL;
     }
     return o;
 }
 
-robj *rdbLoadStringObject(rio *rdb) {
+robj *rdbLoadStringObject(rio *rdb) {//未编码数据
     return rdbGenericLoadStringObject(rdb,0);
 }
 
-robj *rdbLoadEncodedStringObject(rio *rdb) {
+robj *rdbLoadEncodedStringObject(rio *rdb) {//读取编码数据
     return rdbGenericLoadStringObject(rdb,1);
 }
 
@@ -375,11 +375,11 @@ robj *rdbLoadEncodedStringObject(rio *rdb) {
  * 254: + inf
  * 255: - inf
  */
-int rdbSaveDoubleValue(rio *rdb, double val) {
+int rdbSaveDoubleValue(rio *rdb, double val) {//存储double类型
     unsigned char buf[128];
     int len;
 
-    if (isnan(val)) {
+    if (isnan(val)) {//非数字
         buf[0] = 253;
         len = 1;
     } else if (!isfinite(val)) {
@@ -403,10 +403,10 @@ int rdbSaveDoubleValue(rio *rdb, double val) {
         else
 #endif
             snprintf((char*)buf+1,sizeof(buf)-1,"%.17g",val);
-        buf[0] = strlen((char*)buf+1);
+        buf[0] = strlen((char*)buf+1);//第一个字节存储长度
         len = buf[0]+1;
     }
-    return rdbWriteRaw(rdb,buf,len);
+    return rdbWriteRaw(rdb,buf,len);//写数据
 }
 
 /* For information about double serialization check rdbSaveDoubleValue() */
@@ -414,13 +414,13 @@ int rdbLoadDoubleValue(rio *rdb, double *val) {
     char buf[256];
     unsigned char len;
 
-    if (rioRead(rdb,&len,1) == 0) return -1;
+    if (rioRead(rdb,&len,1) == 0) return -1;//读取长度，以区分类型
     switch(len) {
     case 255: *val = R_NegInf; return 0;
     case 254: *val = R_PosInf; return 0;
     case 253: *val = R_Nan; return 0;
     default:
-        if (rioRead(rdb,buf,len) == 0) return -1;
+        if (rioRead(rdb,buf,len) == 0) return -1;//读取数据
         buf[len] = '\0';
         sscanf(buf, "%lg", val);
         return 0;
@@ -430,26 +430,26 @@ int rdbLoadDoubleValue(rio *rdb, double *val) {
 /* Save the object type of object "o". */
 int rdbSaveObjectType(rio *rdb, robj *o) {
     switch (o->type) {
-    case REDIS_STRING:
+    case REDIS_STRING://string
         return rdbSaveType(rdb,REDIS_RDB_TYPE_STRING);
     case REDIS_LIST:
-        if (o->encoding == REDIS_ENCODING_ZIPLIST)
+        if (o->encoding == REDIS_ENCODING_ZIPLIST)//ziplist
             return rdbSaveType(rdb,REDIS_RDB_TYPE_LIST_ZIPLIST);
-        else if (o->encoding == REDIS_ENCODING_LINKEDLIST)
+        else if (o->encoding == REDIS_ENCODING_LINKEDLIST)//linkedlist
             return rdbSaveType(rdb,REDIS_RDB_TYPE_LIST);
         else
             redisPanic("Unknown list encoding");
     case REDIS_SET:
-        if (o->encoding == REDIS_ENCODING_INTSET)
+        if (o->encoding == REDIS_ENCODING_INTSET)//intset
             return rdbSaveType(rdb,REDIS_RDB_TYPE_SET_INTSET);
-        else if (o->encoding == REDIS_ENCODING_HT)
+        else if (o->encoding == REDIS_ENCODING_HT)//hashtable
             return rdbSaveType(rdb,REDIS_RDB_TYPE_SET);
         else
             redisPanic("Unknown set encoding");
     case REDIS_ZSET:
-        if (o->encoding == REDIS_ENCODING_ZIPLIST)
+        if (o->encoding == REDIS_ENCODING_ZIPLIST)//ziplist
             return rdbSaveType(rdb,REDIS_RDB_TYPE_ZSET_ZIPLIST);
-        else if (o->encoding == REDIS_ENCODING_SKIPLIST)
+        else if (o->encoding == REDIS_ENCODING_SKIPLIST)//skiplist
             return rdbSaveType(rdb,REDIS_RDB_TYPE_ZSET);
         else
             redisPanic("Unknown sorted set encoding");
@@ -470,36 +470,36 @@ int rdbSaveObjectType(rio *rdb, robj *o) {
  * type is not specifically a valid Object Type. */
 int rdbLoadObjectType(rio *rdb) {
     int type;
-    if ((type = rdbLoadType(rdb)) == -1) return -1;
-    if (!rdbIsObjectType(type)) return -1;
+    if ((type = rdbLoadType(rdb)) == -1) return -1;//加载数据类型
+    if (!rdbIsObjectType(type)) return -1;//
     return type;
 }
 
 /* Save a Redis object. Returns -1 on error, number of bytes written on success. */
-int rdbSaveObject(rio *rdb, robj *o) {
+int rdbSaveObject(rio *rdb, robj *o) {//保存对象
     int n, nwritten = 0;
 
     if (o->type == REDIS_STRING) {
         /* Save a string value */
-        if ((n = rdbSaveStringObject(rdb,o)) == -1) return -1;
+        if ((n = rdbSaveStringObject(rdb,o)) == -1) return -1;//保存string，三种编码，int，raw，sds
         nwritten += n;
-    } else if (o->type == REDIS_LIST) {
+    } else if (o->type == REDIS_LIST) {//链表
         /* Save a list value */
         if (o->encoding == REDIS_ENCODING_ZIPLIST) {
-            size_t l = ziplistBlobLen((unsigned char*)o->ptr);
+            size_t l = ziplistBlobLen((unsigned char*)o->ptr);//获取ziplist长度
 
-            if ((n = rdbSaveRawString(rdb,o->ptr,l)) == -1) return -1;
+            if ((n = rdbSaveRawString(rdb,o->ptr,l)) == -1) return -1;//ziplist是连续的，可以直接保存
             nwritten += n;
         } else if (o->encoding == REDIS_ENCODING_LINKEDLIST) {
             list *list = o->ptr;
             listIter li;
             listNode *ln;
 
-            if ((n = rdbSaveLen(rdb,listLength(list))) == -1) return -1;
+            if ((n = rdbSaveLen(rdb,listLength(list))) == -1) return -1;//保存链表长度
             nwritten += n;
 
-            listRewind(list,&li);
-            while((ln = listNext(&li))) {
+            listRewind(list,&li);//创建一个指向链表的指针
+            while((ln = listNext(&li))) {//遍历链表，存储每个节点
                 robj *eleobj = listNodeValue(ln);
                 if ((n = rdbSaveStringObject(rdb,eleobj)) == -1) return -1;
                 nwritten += n;
@@ -507,48 +507,48 @@ int rdbSaveObject(rio *rdb, robj *o) {
         } else {
             redisPanic("Unknown list encoding");
         }
-    } else if (o->type == REDIS_SET) {
+    } else if (o->type == REDIS_SET) {//集合
         /* Save a set value */
         if (o->encoding == REDIS_ENCODING_HT) {
             dict *set = o->ptr;
-            dictIterator *di = dictGetIterator(set);
+            dictIterator *di = dictGetIterator(set);//初始化迭代器
             dictEntry *de;
 
             if ((n = rdbSaveLen(rdb,dictSize(set))) == -1) return -1;
             nwritten += n;
 
-            while((de = dictNext(di)) != NULL) {
-                robj *eleobj = dictGetKey(de);
-                if ((n = rdbSaveStringObject(rdb,eleobj)) == -1) return -1;
+            while((de = dictNext(di)) != NULL) {//遍历字典
+                robj *eleobj = dictGetKey(de);//获取key
+                if ((n = rdbSaveStringObject(rdb,eleobj)) == -1) return -1;//保存key，set只有key
                 nwritten += n;
             }
-            dictReleaseIterator(di);
-        } else if (o->encoding == REDIS_ENCODING_INTSET) {
+            dictReleaseIterator(di);//释放迭代器，检查指纹
+        } else if (o->encoding == REDIS_ENCODING_INTSET) {//intset
             size_t l = intsetBlobLen((intset*)o->ptr);
 
-            if ((n = rdbSaveRawString(rdb,o->ptr,l)) == -1) return -1;
+            if ((n = rdbSaveRawString(rdb,o->ptr,l)) == -1) return -1;//，连续数据，直接保存
             nwritten += n;
         } else {
             redisPanic("Unknown set encoding");
         }
     } else if (o->type == REDIS_ZSET) {
         /* Save a sorted set value */
-        if (o->encoding == REDIS_ENCODING_ZIPLIST) {
-            size_t l = ziplistBlobLen((unsigned char*)o->ptr);
+        if (o->encoding == REDIS_ENCODING_ZIPLIST) {//ziplist
+            size_t l = ziplistBlobLen((unsigned char*)o->ptr);//获取压缩表大小
 
-            if ((n = rdbSaveRawString(rdb,o->ptr,l)) == -1) return -1;
+            if ((n = rdbSaveRawString(rdb,o->ptr,l)) == -1) return -1;//压缩表，连续数据，直接保存
             nwritten += n;
-        } else if (o->encoding == REDIS_ENCODING_SKIPLIST) {
+        } else if (o->encoding == REDIS_ENCODING_SKIPLIST) {//跳跃表
             zset *zs = o->ptr;
             dictIterator *di = dictGetIterator(zs->dict);
             dictEntry *de;
 
-            if ((n = rdbSaveLen(rdb,dictSize(zs->dict))) == -1) return -1;
+            if ((n = rdbSaveLen(rdb,dictSize(zs->dict))) == -1) return -1;//保存字典大小
             nwritten += n;
 
-            while((de = dictNext(di)) != NULL) {
-                robj *eleobj = dictGetKey(de);
-                double *score = dictGetVal(de);
+            while((de = dictNext(di)) != NULL) {//遍历字典
+                robj *eleobj = dictGetKey(de);//数据
+                double *score = dictGetVal(de);//分数
 
                 if ((n = rdbSaveStringObject(rdb,eleobj)) == -1) return -1;
                 nwritten += n;
@@ -559,22 +559,22 @@ int rdbSaveObject(rio *rdb, robj *o) {
         } else {
             redisPanic("Unknown sorted set encoding");
         }
-    } else if (o->type == REDIS_HASH) {
+    } else if (o->type == REDIS_HASH) {//hashtable
         /* Save a hash value */
-        if (o->encoding == REDIS_ENCODING_ZIPLIST) {
-            size_t l = ziplistBlobLen((unsigned char*)o->ptr);
+        if (o->encoding == REDIS_ENCODING_ZIPLIST) {//压缩表存储
+            size_t l = ziplistBlobLen((unsigned char*)o->ptr);//保存压缩表
 
             if ((n = rdbSaveRawString(rdb,o->ptr,l)) == -1) return -1;
             nwritten += n;
 
-        } else if (o->encoding == REDIS_ENCODING_HT) {
+        } else if (o->encoding == REDIS_ENCODING_HT) {//hashtable
             dictIterator *di = dictGetIterator(o->ptr);
             dictEntry *de;
 
             if ((n = rdbSaveLen(rdb,dictSize((dict*)o->ptr))) == -1) return -1;
             nwritten += n;
 
-            while((de = dictNext(di)) != NULL) {
+            while((de = dictNext(di)) != NULL) {//遍历链表，保存键值
                 robj *key = dictGetKey(de);
                 robj *val = dictGetVal(de);
 
@@ -615,12 +615,12 @@ int rdbSaveKeyValuePair(rio *rdb, robj *key, robj *val,
     /* Save the expire time */
     if (expiretime != -1) {
         /* If this key is already expired skip it */
-        if (expiretime < now) return 0;
-        if (rdbSaveType(rdb,REDIS_RDB_OPCODE_EXPIRETIME_MS) == -1) return -1;
-        if (rdbSaveMillisecondTime(rdb,expiretime) == -1) return -1;
+        if (expiretime < now) return 0;//已过期
+        if (rdbSaveType(rdb,REDIS_RDB_OPCODE_EXPIRETIME_MS) == -1) return -1;//保存过期时间单位
+        if (rdbSaveMillisecondTime(rdb,expiretime) == -1) return -1;//保存过期时间
     }
 
-    /* Save type, key, value */
+    /* Save type, key, value *///保存类型键值
     if (rdbSaveObjectType(rdb,val) == -1) return -1;
     if (rdbSaveStringObject(rdb,key) == -1) return -1;
     if (rdbSaveObject(rdb,val) == -1) return -1;
@@ -649,7 +649,7 @@ int rdbSaveRio(rio *rdb, int *error) {
     if (rdbWriteRaw(rdb,magic,9) == -1) goto werr;
 
     for (j = 0; j < server.dbnum; j++) {
-        redisDb *db = server.db+j;
+        redisDb *db = server.db+j;//获取第j个数据库地址
         dict *d = db->dict;
         if (dictSize(d) == 0) continue;
         di = dictGetSafeIterator(d);
@@ -660,27 +660,27 @@ int rdbSaveRio(rio *rdb, int *error) {
         if (rdbSaveLen(rdb,j) == -1) goto werr;
 
         /* Iterate this DB writing every entry */
-        while((de = dictNext(di)) != NULL) {
+        while((de = dictNext(di)) != NULL) {//保存数据库键值
             sds keystr = dictGetKey(de);
             robj key, *o = dictGetVal(de);
             long long expire;
 
             initStaticStringObject(key,keystr);
-            expire = getExpire(db,&key);
-            if (rdbSaveKeyValuePair(rdb,&key,o,expire,now) == -1) goto werr;
+            expire = getExpire(db,&key);//获取过期时间
+            if (rdbSaveKeyValuePair(rdb,&key,o,expire,now) == -1) goto werr;//存储键与过期时间键值对
         }
         dictReleaseIterator(di);
     }
     di = NULL; /* So that we don't release it again on error. */
 
     /* EOF opcode */
-    if (rdbSaveType(rdb,REDIS_RDB_OPCODE_EOF) == -1) goto werr;
+    if (rdbSaveType(rdb,REDIS_RDB_OPCODE_EOF) == -1) goto werr;//写入结束符
 
     /* CRC64 checksum. It will be zero if checksum computation is disabled, the
      * loading code skips the check in this case. */
     cksum = rdb->cksum;
     memrev64ifbe(&cksum);
-    if (rioWrite(rdb,&cksum,8) == 0) goto werr;
+    if (rioWrite(rdb,&cksum,8) == 0) goto werr;//写入校验和
     return REDIS_OK;
 
 werr:
@@ -697,7 +697,7 @@ werr:
  * While the suffix is the 40 bytes hex string we announced in the prefix.
  * This way processes receiving the payload can understand when it ends
  * without doing any processing of the content. */
-int rdbSaveRioWithEOFMark(rio *rdb, int *error) {
+int rdbSaveRioWithEOFMark(rio *rdb, int *error) {//增加dump文件前缀后缀
     char eofmark[REDIS_EOF_MARK_SIZE];
 
     getRandomHexChars(eofmark,REDIS_EOF_MARK_SIZE);
@@ -723,7 +723,7 @@ int rdbSave(char *filename) {
     int error;
 
     snprintf(tmpfile,256,"temp-%d.rdb", (int) getpid());
-    fp = fopen(tmpfile,"w");
+    fp = fopen(tmpfile,"w");//创建文件
     if (!fp) {
         redisLog(REDIS_WARNING, "Failed opening .rdb for saving: %s",
             strerror(errno));
@@ -731,7 +731,7 @@ int rdbSave(char *filename) {
     }
 
     rioInitWithFile(&rdb,fp);
-    if (rdbSaveRio(&rdb,&error) == REDIS_ERR) {
+    if (rdbSaveRio(&rdb,&error) == REDIS_ERR) {//保存
         errno = error;
         goto werr;
     }
@@ -743,9 +743,9 @@ int rdbSave(char *filename) {
 
     /* Use RENAME to make sure the DB file is changed atomically only
      * if the generate DB file is ok. */
-    if (rename(tmpfile,filename) == -1) {
+    if (rename(tmpfile,filename) == -1) {//修改名字
         redisLog(REDIS_WARNING,"Error moving temp DB file on the final destination: %s", strerror(errno));
-        unlink(tmpfile);
+        unlink(tmpfile);//失败则删除
         return REDIS_ERR;
     }
     redisLog(REDIS_NOTICE,"DB saved on disk");
