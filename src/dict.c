@@ -581,11 +581,11 @@ dictEntry *dictNext(dictIterator *iter)
                 if (iter->safe)
                     iter->d->iterators++;
                 else
-                    iter->fingerprint = dictFingerprint(iter->d);
+                    iter->fingerprint = dictFingerprint(iter->d);//建立指纹，释放迭代器时再次检查指纹
             }
             iter->index++;
-            if (iter->index >= (long) ht->size) {
-                if (dictIsRehashing(iter->d) && iter->table == 0) {
+            if (iter->index >= (long) ht->size) {//超过当前hashtable的大小
+                if (dictIsRehashing(iter->d) && iter->table == 0) {//当前处于rehashing，ht[1]中的内容也需要保存
                     iter->table++;
                     iter->index = 0;
                     ht = &iter->d->ht[1];
@@ -593,14 +593,14 @@ dictEntry *dictNext(dictIterator *iter)
                     break;
                 }
             }
-            iter->entry = ht->table[iter->index];
+            iter->entry = ht->table[iter->index];//确定是使用哪个hashtable后，初始化桶
         } else {
-            iter->entry = iter->nextEntry;
+            iter->entry = iter->nextEntry;//切换到下一个桶
         }
         if (iter->entry) {
             /* We need to save the 'next' here, the iterator user
              * may delete the entry we are returning. */
-            iter->nextEntry = iter->entry->next;
+            iter->nextEntry = iter->entry->next;//保存下一个节点
             return iter->entry;
         }
     }
