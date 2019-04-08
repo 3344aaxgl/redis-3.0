@@ -298,7 +298,7 @@ sds sdscpy(sds s, const char *t) {
  * The function returns the length of the null-terminated string
  * representation stored at 's'. */
 #define SDS_LLSTR_SIZE 21
-int sdsll2str(char *s, long long value) {
+int sdsll2str(char *s, long long value) {//longlong转字符串
     char *p, aux;
     unsigned long long v;
     size_t l;
@@ -366,7 +366,7 @@ sds sdsfromlonglong(long long value) {
     char buf[SDS_LLSTR_SIZE];
     int len = sdsll2str(buf,value);
 
-    return sdsnewlen(buf,len);
+    return sdsnewlen(buf,len);//创建字符串对象
 }
 
 /* Like sdscatprintf() but gets va_list instead of being variadic. */

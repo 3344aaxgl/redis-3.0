@@ -104,13 +104,13 @@ static inline size_t rioWrite(rio *r, const void *buf, size_t len) {
 }
 
 static inline size_t rioRead(rio *r, void *buf, size_t len) {
-    while (len) {
+    while (len) {//不能超过最大读取字节
         size_t bytes_to_read = (r->max_processing_chunk && r->max_processing_chunk < len) ? r->max_processing_chunk : len;
-        if (r->read(r,buf,bytes_to_read) == 0)
+        if (r->read(r,buf,bytes_to_read) == 0)//读取数据
             return 0;
-        if (r->update_cksum) r->update_cksum(r,buf,bytes_to_read);
-        buf = (char*)buf + bytes_to_read;
-        len -= bytes_to_read;
+        if (r->update_cksum) r->update_cksum(r,buf,bytes_to_read);//更新校验和
+        buf = (char*)buf + bytes_to_read;//更新下一个存储位置
+        len -= bytes_to_read;//剩余要读的字节数
         r->processed_bytes += bytes_to_read;
     }
     return 1;

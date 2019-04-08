@@ -115,19 +115,19 @@ uint32_t rdbLoadLen(rio *rdb, int *isencoded) {//读取长度
 
     if (isencoded) *isencoded = 0;
     if (rioRead(rdb,buf,1) == 0) return REDIS_RDB_LENERR;
-    type = (buf[0]&0xC0)>>6;
-    if (type == REDIS_RDB_ENCVAL) {
+    type = (buf[0]&0xC0)>>6;//获取类型
+    if (type == REDIS_RDB_ENCVAL) {//特殊类型
         /* Read a 6 bit encoding type. */
         if (isencoded) *isencoded = 1;
         return buf[0]&0x3F;
     } else if (type == REDIS_RDB_6BITLEN) {
         /* Read a 6 bit len. */
-        return buf[0]&0x3F;
+        return buf[0]&0x3F;//返回长度
     } else if (type == REDIS_RDB_14BITLEN) {
         /* Read a 14 bit len. */
         if (rioRead(rdb,buf+1,1) == 0) return REDIS_RDB_LENERR;
-        return ((buf[0]&0x3F)<<8)|buf[1];
-    } else {
+        return ((buf[0]&0x3F)<<8)|buf[1];//长度存储在后续的6+8位中
+    } else {//后续4字节都是长度
         /* Read a 32 bit len. */
         if (rioRead(rdb,&len,4) == 0) return REDIS_RDB_LENERR;
         return ntohl(len);
@@ -138,17 +138,17 @@ uint32_t rdbLoadLen(rio *rdb, int *isencoded) {//读取长度
  * for encoded types. If the function successfully encodes the integer, the
  * representation is stored in the buffer pointer to by "enc" and the string
  * length is returned. Otherwise 0 is returned. */
-int rdbEncodeInteger(long long value, unsigned char *enc) {
-    if (value >= -(1<<7) && value <= (1<<7)-1) {
+int rdbEncodeInteger(long long value, unsigned char *enc) {//编码数字
+    if (value >= -(1<<7) && value <= (1<<7)-1) {//8位
         enc[0] = (REDIS_RDB_ENCVAL<<6)|REDIS_RDB_ENC_INT8;
         enc[1] = value&0xFF;
         return 2;
-    } else if (value >= -(1<<15) && value <= (1<<15)-1) {
+    } else if (value >= -(1<<15) && value <= (1<<15)-1) {//16位
         enc[0] = (REDIS_RDB_ENCVAL<<6)|REDIS_RDB_ENC_INT16;
         enc[1] = value&0xFF;
         enc[2] = (value>>8)&0xFF;
         return 3;
-    } else if (value >= -((long long)1<<31) && value <= ((long long)1<<31)-1) {
+    } else if (value >= -((long long)1<<31) && value <= ((long long)1<<31)-1) {//32位
         enc[0] = (REDIS_RDB_ENCVAL<<6)|REDIS_RDB_ENC_INT32;
         enc[1] = value&0xFF;
         enc[2] = (value>>8)&0xFF;
@@ -163,19 +163,19 @@ int rdbEncodeInteger(long long value, unsigned char *enc) {
 /* Loads an integer-encoded object with the specified encoding type "enctype".
  * If the "encode" argument is set the function may return an integer-encoded
  * string object, otherwise it always returns a raw string object. */
-robj *rdbLoadIntegerObject(rio *rdb, int enctype, int encode) {
+robj *rdbLoadIntegerObject(rio *rdb, int enctype, int encode) {//读取数字并返回redisobject
     unsigned char enc[4];
     long long val;
 
-    if (enctype == REDIS_RDB_ENC_INT8) {
+    if (enctype == REDIS_RDB_ENC_INT8) {//读取1字节
         if (rioRead(rdb,enc,1) == 0) return NULL;
         val = (signed char)enc[0];
-    } else if (enctype == REDIS_RDB_ENC_INT16) {
+    } else if (enctype == REDIS_RDB_ENC_INT16) {//读取2字节数
         uint16_t v;
         if (rioRead(rdb,enc,2) == 0) return NULL;
         v = enc[0]|(enc[1]<<8);
         val = (int16_t)v;
-    } else if (enctype == REDIS_RDB_ENC_INT32) {
+    } else if (enctype == REDIS_RDB_ENC_INT32) {//读取4字节长度整数
         uint32_t v;
         if (rioRead(rdb,enc,4) == 0) return NULL;
         v = enc[0]|(enc[1]<<8)|(enc[2]<<16)|(enc[3]<<24);
@@ -184,9 +184,9 @@ robj *rdbLoadIntegerObject(rio *rdb, int enctype, int encode) {
         val = 0; /* anti-warning */
         redisPanic("Unknown RDB integer encoding type");
     }
-    if (encode)
+    if (encode)//int编码
         return createStringObjectFromLongLong(val);
-    else
+    else//raw编码
         return createObject(REDIS_STRING,sdsfromlonglong(val));
 }
 

@@ -98,12 +98,12 @@ robj *createStringObjectFromLongLong(long long value) {
         incrRefCount(shared.integers[value]);
         o = shared.integers[value];
     } else {
-        if (value >= LONG_MIN && value <= LONG_MAX) {
+        if (value >= LONG_MIN && value <= LONG_MAX) {//long型，可以用指针大小存储
             o = createObject(REDIS_STRING, NULL);
             o->encoding = REDIS_ENCODING_INT;
             o->ptr = (void*)((long)value);
         } else {
-            o = createObject(REDIS_STRING,sdsfromlonglong(value));
+            o = createObject(REDIS_STRING,sdsfromlonglong(value));//longlong转成字符串后存储
         }
     }
     return o;
