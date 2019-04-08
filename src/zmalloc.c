@@ -335,7 +335,7 @@ float zmalloc_get_fragmentation_ratio(size_t rss) {
  * Example: zmalloc_get_smap_bytes_by_field("Rss:");
  */
 #if defined(HAVE_PROC_SMAPS)
-size_t zmalloc_get_smap_bytes_by_field(char *field) {
+size_t zmalloc_get_smap_bytes_by_field(char *field) {//查看进程内存映像信息
     char line[1024];
     size_t bytes = 0;
     FILE *fp = fopen("/proc/self/smaps","r");

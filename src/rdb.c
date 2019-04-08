@@ -771,15 +771,15 @@ int rdbSaveBackground(char *filename) {
     server.lastbgsave_try = time(NULL);
 
     start = ustime();
-    if ((childpid = fork()) == 0) {
+    if ((childpid = fork()) == 0) {//fork之后，父进程的数据被拷贝到子进程
         int retval;
 
         /* Child */
-        closeListeningSockets(0);
+        closeListeningSockets(0);//关闭套接字
         redisSetProcTitle("redis-rdb-bgsave");
-        retval = rdbSave(filename);
+        retval = rdbSave(filename);//保存数据库
         if (retval == REDIS_OK) {
-            size_t private_dirty = zmalloc_get_private_dirty();
+            size_t private_dirty = zmalloc_get_private_dirty();//查看进程已改私有页面
 
             if (private_dirty) {
                 redisLog(REDIS_NOTICE,
@@ -787,13 +787,13 @@ int rdbSaveBackground(char *filename) {
                     private_dirty/(1024*1024));
             }
         }
-        exitFromChild((retval == REDIS_OK) ? 0 : 1);
+        exitFromChild((retval == REDIS_OK) ? 0 : 1);//退出进程
     } else {
         /* Parent */
-        server.stat_fork_time = ustime()-start;
+        server.stat_fork_time = ustime()-start;//fork花的时间
         server.stat_fork_rate = (double) zmalloc_used_memory() * 1000000 / server.stat_fork_time / (1024*1024*1024); /* GB per second. */
         latencyAddSampleIfNeeded("fork",server.stat_fork_time/1000);
-        if (childpid == -1) {
+        if (childpid == -1) {//子进程创建失败
             server.lastbgsave_status = REDIS_ERR;
             redisLog(REDIS_WARNING,"Can't save in background: fork: %s",
                 strerror(errno));
@@ -803,7 +803,7 @@ int rdbSaveBackground(char *filename) {
         server.rdb_save_time_start = time(NULL);
         server.rdb_child_pid = childpid;
         server.rdb_child_type = REDIS_RDB_CHILD_TYPE_DISK;
-        updateDictResizePolicy();
+        updateDictResizePolicy();//备份期间避免hashtable的resize
         return REDIS_OK;
     }
     return REDIS_OK; /* unreached */
@@ -813,21 +813,21 @@ void rdbRemoveTempFile(pid_t childpid) {
     char tmpfile[256];
 
     snprintf(tmpfile,sizeof(tmpfile),"temp-%d.rdb", (int) childpid);
-    unlink(tmpfile);
+    unlink(tmpfile);//没有链接之后就删除文件
 }
 
 /* Load a Redis object of the specified type from the specified file.
  * On success a newly allocated object is returned, otherwise NULL. */
-robj *rdbLoadObject(int rdbtype, rio *rdb) {
+robj *rdbLoadObject(int rdbtype, rio *rdb) {//读取对象
     robj *o, *ele, *dec;
     size_t len;
     unsigned int i;
 
-    if (rdbtype == REDIS_RDB_TYPE_STRING) {
+    if (rdbtype == REDIS_RDB_TYPE_STRING) {//读取string
         /* Read string value */
         if ((o = rdbLoadEncodedStringObject(rdb)) == NULL) return NULL;
         o = tryObjectEncoding(o);
-    } else if (rdbtype == REDIS_RDB_TYPE_LIST) {
+    } else if (rdbtype == REDIS_RDB_TYPE_LIST) {//读取list
         /* Read list value */
         if ((len = rdbLoadLen(rdb,NULL)) == REDIS_RDB_LENERR) return NULL;
 
@@ -847,9 +847,9 @@ robj *rdbLoadObject(int rdbtype, rio *rdb) {
             if (o->encoding == REDIS_ENCODING_ZIPLIST &&
                 sdsEncodedObject(ele) &&
                 sdslen(ele->ptr) > server.list_max_ziplist_value)
-                    listTypeConvert(o,REDIS_ENCODING_LINKEDLIST);
+                    listTypeConvert(o,REDIS_ENCODING_LINKEDLIST);//转成双端链表
 
-            if (o->encoding == REDIS_ENCODING_ZIPLIST) {
+            if (o->encoding == REDIS_ENCODING_ZIPLIST) {//压缩链表
                 dec = getDecodedObject(ele);
                 o->ptr = ziplistPush(o->ptr,dec->ptr,sdslen(dec->ptr),REDIS_TAIL);
                 decrRefCount(dec);
@@ -1081,7 +1081,7 @@ robj *rdbLoadObject(int rdbtype, rio *rdb) {
 
 /* Mark that we are loading in the global state and setup the fields
  * needed to provide loading stats. */
-void startLoading(FILE *fp) {
+void startLoading(FILE *fp) {//初始化load状态
     struct stat sb;
 
     /* Load the DB */
@@ -1111,7 +1111,7 @@ void stopLoading(void) {
    and if needed calculate rdb checksum  */
 void rdbLoadProgressCallback(rio *r, const void *buf, size_t len) {
     if (server.rdb_checksum)
-        rioGenericUpdateChecksum(r, buf, len);
+        rioGenericUpdateChecksum(r, buf, len);//更新校验和
     if (server.loading_process_events_interval_bytes &&
         (r->processed_bytes + len)/server.loading_process_events_interval_bytes > r->processed_bytes/server.loading_process_events_interval_bytes)
     {
@@ -1126,7 +1126,7 @@ void rdbLoadProgressCallback(rio *r, const void *buf, size_t len) {
     }
 }
 
-int rdbLoad(char *filename) {
+int rdbLoad(char *filename) {//rdb文件加载
     uint32_t dbid;
     int type, rdbver;
     redisDb *db = server.db+0;
@@ -1140,7 +1140,7 @@ int rdbLoad(char *filename) {
     rioInitWithFile(&rdb,fp);
     rdb.update_cksum = rdbLoadProgressCallback;
     rdb.max_processing_chunk = server.loading_process_events_interval_bytes;
-    if (rioRead(&rdb,buf,9) == 0) goto eoferr;
+    if (rioRead(&rdb,buf,9) == 0) goto eoferr;//读取前9个字节
     buf[9] = '\0';
     if (memcmp(buf,"REDIS",5) != 0) {
         fclose(fp);
@@ -1163,14 +1163,14 @@ int rdbLoad(char *filename) {
 
         /* Read type. */
         if ((type = rdbLoadType(&rdb)) == -1) goto eoferr;
-        if (type == REDIS_RDB_OPCODE_EXPIRETIME) {
+        if (type == REDIS_RDB_OPCODE_EXPIRETIME) {//加载过期时间
             if ((expiretime = rdbLoadTime(&rdb)) == -1) goto eoferr;
             /* We read the time so we need to read the object type again. */
-            if ((type = rdbLoadType(&rdb)) == -1) goto eoferr;
+            if ((type = rdbLoadType(&rdb)) == -1) goto eoferr;//加载类型
             /* the EXPIRETIME opcode specifies time in seconds, so convert
              * into milliseconds. */
             expiretime *= 1000;
-        } else if (type == REDIS_RDB_OPCODE_EXPIRETIME_MS) {
+        } else if (type == REDIS_RDB_OPCODE_EXPIRETIME_MS) {//毫秒为单位的过期时间
             /* Milliseconds precision expire times introduced with RDB
              * version 3. */
             if ((expiretime = rdbLoadMillisecondTime(&rdb)) == -1) goto eoferr;
@@ -1182,7 +1182,7 @@ int rdbLoad(char *filename) {
             break;
 
         /* Handle SELECT DB opcode as a special case */
-        if (type == REDIS_RDB_OPCODE_SELECTDB) {
+        if (type == REDIS_RDB_OPCODE_SELECTDB) {//数据库ID
             if ((dbid = rdbLoadLen(&rdb,NULL)) == REDIS_RDB_LENERR)
                 goto eoferr;
             if (dbid >= (unsigned)server.dbnum) {
@@ -1192,7 +1192,7 @@ int rdbLoad(char *filename) {
             db = server.db+dbid;
             continue;
         }
-        /* Read key */
+        /* Read key *///加载键值
         if ((key = rdbLoadStringObject(&rdb)) == NULL) goto eoferr;
         /* Read value */
         if ((val = rdbLoadObject(type,&rdb)) == NULL) goto eoferr;
@@ -1207,10 +1207,10 @@ int rdbLoad(char *filename) {
             continue;
         }
         /* Add the new object in the hash table */
-        dbAdd(db,key,val);
+        dbAdd(db,key,val);//将键值添加到数据库
 
         /* Set the expire time if needed */
-        if (expiretime != -1) setExpire(db,key,expiretime);
+        if (expiretime != -1) setExpire(db,key,expiretime);//设置过期时间
 
         decrRefCount(key);
     }
@@ -1240,17 +1240,17 @@ eoferr: /* unexpected end of file is handled here with a fatal exit */
 
 /* A background saving child (BGSAVE) terminated its work. Handle this.
  * This function covers the case of actual BGSAVEs. */
-void backgroundSaveDoneHandlerDisk(int exitcode, int bysignal) {
-    if (!bysignal && exitcode == 0) {
+void backgroundSaveDoneHandlerDisk(int exitcode, int bysignal) {//处理备份结束
+    if (!bysignal && exitcode == 0) {//成功
         redisLog(REDIS_NOTICE,
             "Background saving terminated with success");
         server.dirty = server.dirty - server.dirty_before_bgsave;
         server.lastsave = time(NULL);
         server.lastbgsave_status = REDIS_OK;
-    } else if (!bysignal && exitcode != 0) {
+    } else if (!bysignal && exitcode != 0) {//失败
         redisLog(REDIS_WARNING, "Background saving error");
         server.lastbgsave_status = REDIS_ERR;
-    } else {
+    } else {//警告
         mstime_t latency;
 
         redisLog(REDIS_WARNING,
@@ -1269,7 +1269,7 @@ void backgroundSaveDoneHandlerDisk(int exitcode, int bysignal) {
     server.rdb_save_time_last = time(NULL)-server.rdb_save_time_start;
     server.rdb_save_time_start = -1;
     /* Possibly there are slaves waiting for a BGSAVE in order to be served
-     * (the first stage of SYNC is a bulk transfer of dump.rdb) */
+     * (the first stage of SYNC is a bulk transfer of dump.rdb) *///更新从服务器
     updateSlavesWaitingBgsave((!bysignal && exitcode == 0) ? REDIS_OK : REDIS_ERR, REDIS_RDB_CHILD_TYPE_DISK);
 }
 
@@ -1400,7 +1400,7 @@ int rdbSaveToSlavesSockets(void) {
     /* Before to fork, create a pipe that will be used in order to
      * send back to the parent the IDs of the slaves that successfully
      * received all the writes. */
-    if (pipe(pipefds) == -1) return REDIS_ERR;
+    if (pipe(pipefds) == -1) return REDIS_ERR;//创建管道
     server.rdb_pipe_read_result_from_child = pipefds[0];
     server.rdb_pipe_write_result_to_parent = pipefds[1];
 
@@ -1424,14 +1424,14 @@ int rdbSaveToSlavesSockets(void) {
             /* Put the socket in non-blocking mode to simplify RDB transfer.
              * We'll restore it when the children returns (since duped socket
              * will share the O_NONBLOCK attribute with the parent). */
-            anetBlock(NULL,slave->fd);
+            anetBlock(NULL,slave->fd);//设置成非阻塞
             anetSendTimeout(NULL,slave->fd,server.repl_timeout*1000);
         }
     }
 
     /* Create the child process. */
     start = ustime();
-    if ((childpid = fork()) == 0) {
+    if ((childpid = fork()) == 0) {//创建子进程
         /* Child */
         int retval;
         rio slave_sockets;
@@ -1442,7 +1442,7 @@ int rdbSaveToSlavesSockets(void) {
         closeListeningSockets(0);
         redisSetProcTitle("redis-rdb-to-slaves");
 
-        retval = rdbSaveRioWithEOFMark(&slave_sockets,NULL);
+        retval = rdbSaveRioWithEOFMark(&slave_sockets,NULL);//发送数据给slave
         if (retval == REDIS_OK && rioFlush(&slave_sockets) == 0)
             retval = REDIS_ERR;
 
@@ -1487,7 +1487,7 @@ int rdbSaveToSlavesSockets(void) {
              * process with all the childre that were waiting. */
             msglen = sizeof(uint64_t)*(1+2*numfds);
             if (*len == 0 ||
-                write(server.rdb_pipe_write_result_to_parent,msg,msglen)
+                write(server.rdb_pipe_write_result_to_parent,msg,msglen)//通知父进程
                 != msglen)
             {
                 retval = REDIS_ERR;
@@ -1537,7 +1537,7 @@ int rdbSaveToSlavesSockets(void) {
     return REDIS_OK; /* Unreached. */
 }
 
-void saveCommand(redisClient *c) {
+void saveCommand(redisClient *c) {//
     if (server.rdb_child_pid != -1) {
         addReplyError(c,"Background save already in progress");
         return;
@@ -1549,7 +1549,7 @@ void saveCommand(redisClient *c) {
     }
 }
 
-void bgsaveCommand(redisClient *c) {
+void bgsaveCommand(redisClient *c) {//备份
     if (server.rdb_child_pid != -1) {
         addReplyError(c,"Background save already in progress");
     } else if (server.aof_child_pid != -1) {
