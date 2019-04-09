@@ -68,14 +68,14 @@ typedef struct aofrwblock {
  * so can be used for the first initialization as well. */
 void aofRewriteBufferReset(void) {
     if (server.aof_rewrite_buf_blocks)
-        listRelease(server.aof_rewrite_buf_blocks);
+        listRelease(server.aof_rewrite_buf_blocks);//释放原有的链表
 
-    server.aof_rewrite_buf_blocks = listCreate();
-    listSetFreeMethod(server.aof_rewrite_buf_blocks,zfree);
+    server.aof_rewrite_buf_blocks = listCreate();//创建新链表
+    listSetFreeMethod(server.aof_rewrite_buf_blocks,zfree);//设置释放函数
 }
 
 /* Return the current size of the AOF rewrite buffer. */
-unsigned long aofRewriteBufferSize(void) {
+unsigned long aofRewriteBufferSize(void) {//返回大小
     listNode *ln;
     listIter li;
     unsigned long size = 0;
@@ -105,17 +105,17 @@ void aofChildWriteDiffData(aeEventLoop *el, int fd, void *privdata, int mask) {
         block = ln ? ln->value : NULL;
         if (server.aof_stop_sending_diff || !block) {
             aeDeleteFileEvent(server.el,server.aof_pipe_write_data_to_child,
-                              AE_WRITABLE);
+                              AE_WRITABLE);//将描述符从可写描述符集中删除
             return;
         }
-        if (block->used > 0) {
+        if (block->used > 0) {//有数据
             nwritten = write(server.aof_pipe_write_data_to_child,
-                             block->buf,block->used);
+                             block->buf,block->used);//发送给子进程
             if (nwritten <= 0) return;
-            memmove(block->buf,block->buf+nwritten,block->used-nwritten);
+            memmove(block->buf,block->buf+nwritten,block->used-nwritten);//将后面的数据往前移
             block->used -= nwritten;
         }
-        if (block->used == 0) listDelNode(server.aof_rewrite_buf_blocks,ln);
+        if (block->used == 0) listDelNode(server.aof_rewrite_buf_blocks,ln);//彻底删除数据
     }
 }
 
@@ -129,26 +129,26 @@ void aofRewriteBufferAppend(unsigned char *s, unsigned long len) {
          * at least some piece into it. */
         if (block) {
             unsigned long thislen = (block->free < len) ? block->free : len;
-            if (thislen) {  /* The current block is not already full. */
+            if (thislen) {  /* The current block is not already full. *///先将当前块填满
                 memcpy(block->buf+block->used, s, thislen);
                 block->used += thislen;
                 block->free -= thislen;
                 s += thislen;
-                len -= thislen;
+                len -= thislen;//是否还需要空间
             }
         }
 
         if (len) { /* First block to allocate, or need another block. */
             int numblocks;
 
-            block = zmalloc(sizeof(*block));
+            block = zmalloc(sizeof(*block));//分配新的空间
             block->free = AOF_RW_BUF_BLOCK_SIZE;
             block->used = 0;
-            listAddNodeTail(server.aof_rewrite_buf_blocks,block);
+            listAddNodeTail(server.aof_rewrite_buf_blocks,block);//添加到链表上
 
             /* Log every time we cross more 10 or 100 blocks, respectively
              * as a notice or warning. */
-            numblocks = listLength(server.aof_rewrite_buf_blocks);
+            numblocks = listLength(server.aof_rewrite_buf_blocks);//每10个给notice，100个给警告
             if (((numblocks+1) % 10) == 0) {
                 int level = ((numblocks+1) % 100) == 0 ? REDIS_WARNING :
                                                          REDIS_NOTICE;
@@ -160,7 +160,7 @@ void aofRewriteBufferAppend(unsigned char *s, unsigned long len) {
 
     /* Install a file event to send data to the rewrite child if there is
      * not one already. */
-    if (aeGetFileEvents(server.el,server.aof_pipe_write_data_to_child) == 0) {
+    if (aeGetFileEvents(server.el,server.aof_pipe_write_data_to_child) == 0) {//没有注册
         aeCreateFileEvent(server.el, server.aof_pipe_write_data_to_child,
             AE_WRITABLE, aofChildWriteDiffData, NULL);
     }

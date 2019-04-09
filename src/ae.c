@@ -75,11 +75,11 @@ aeEventLoop *aeCreateEventLoop(int setsize) {
     eventLoop->stop = 0;
     eventLoop->maxfd = -1;
     eventLoop->beforesleep = NULL;
-    if (aeApiCreate(eventLoop) == -1) goto err;
+    if (aeApiCreate(eventLoop) == -1) goto err;//描述符集
     /* Events with mask == AE_NONE are not set. So let's initialize the
      * vector with it. */
     for (i = 0; i < setsize; i++)
-        eventLoop->events[i].mask = AE_NONE;
+        eventLoop->events[i].mask = AE_NONE;//掩码
     return eventLoop;
 
 err:
@@ -110,19 +110,19 @@ int aeResizeSetSize(aeEventLoop *eventLoop, int setsize) {
     if (eventLoop->maxfd >= setsize) return AE_ERR;
     if (aeApiResize(eventLoop,setsize) == -1) return AE_ERR;
 
-    eventLoop->events = zrealloc(eventLoop->events,sizeof(aeFileEvent)*setsize);
+    eventLoop->events = zrealloc(eventLoop->events,sizeof(aeFileEvent)*setsize);//realloc
     eventLoop->fired = zrealloc(eventLoop->fired,sizeof(aeFiredEvent)*setsize);
     eventLoop->setsize = setsize;
 
     /* Make sure that if we created new slots, they are initialized with
      * an AE_NONE mask. */
-    for (i = eventLoop->maxfd+1; i < setsize; i++)
+    for (i = eventLoop->maxfd+1; i < setsize; i++)//新创建的置掩码为0
         eventLoop->events[i].mask = AE_NONE;
     return AE_OK;
 }
 
 void aeDeleteEventLoop(aeEventLoop *eventLoop) {
-    aeApiFree(eventLoop);
+    aeApiFree(eventLoop);//释放描述符集空间
     zfree(eventLoop->events);
     zfree(eventLoop->fired);
     zfree(eventLoop);
@@ -133,7 +133,7 @@ void aeStop(aeEventLoop *eventLoop) {
 }
 
 int aeCreateFileEvent(aeEventLoop *eventLoop, int fd, int mask,
-        aeFileProc *proc, void *clientData)
+        aeFileProc *proc, void *clientData)//添加事件
 {
     if (fd >= eventLoop->setsize) {
         errno = ERANGE;
@@ -152,7 +152,7 @@ int aeCreateFileEvent(aeEventLoop *eventLoop, int fd, int mask,
     return AE_OK;
 }
 
-void aeDeleteFileEvent(aeEventLoop *eventLoop, int fd, int mask)
+void aeDeleteFileEvent(aeEventLoop *eventLoop, int fd, int mask)//删除事件
 {
     if (fd >= eventLoop->setsize) return;
     aeFileEvent *fe = &eventLoop->events[fd];
