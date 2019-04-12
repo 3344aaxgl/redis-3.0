@@ -36,12 +36,12 @@
 #include "redis.h"
 
 /* Dictionary type for latency events. */
-int dictStringKeyCompare(void *privdata, const void *key1, const void *key2) {
+int dictStringKeyCompare(void *privdata, const void *key1, const void *key2) {//键值比较
     REDIS_NOTUSED(privdata);
     return strcmp(key1,key2) == 0;
 }
 
-unsigned int dictStringHash(const void *key) {
+unsigned int dictStringHash(const void *key) {//hash函数
     return dictGenHashFunction(key, strlen(key));
 }
 
@@ -79,7 +79,7 @@ int THPIsEnabled(void) {
  * value of the function is non-zero, the process is being targeted by
  * THP support, and is likely to have memory usage / latency issues. */
 int THPGetAnonHugePagesSize(void) {
-    return zmalloc_get_smap_bytes_by_field("AnonHugePages:");
+    return zmalloc_get_smap_bytes_by_field("AnonHugePages:");//匿名大页的大小
 }
 
 /* ---------------------------- Latency API --------------------------------- */
@@ -88,7 +88,7 @@ int THPGetAnonHugePagesSize(void) {
  * of time series, each time serie is craeted on demand in order to avoid
  * having a fixed list to maintain. */
 void latencyMonitorInit(void) {
-    server.latency_events = dictCreate(&latencyTimeSeriesDictType,NULL);
+    server.latency_events = dictCreate(&latencyTimeSeriesDictType,NULL);//创建记录延迟事件的字典
 }
 
 /* Add the specified sample to the specified time series "event".
@@ -106,15 +106,15 @@ void latencyAddSample(char *event, mstime_t latency) {
         ts->idx = 0;
         ts->max = 0;
         memset(ts->samples,0,sizeof(ts->samples));
-        dictAdd(server.latency_events,zstrdup(event),ts);
+        dictAdd(server.latency_events,zstrdup(event),ts);//添加延时事件到字典
     }
 
     /* If the previous sample is in the same second, we update our old sample
      * if this latency is > of the old one, or just return. */
     prev = (ts->idx + LATENCY_TS_LEN - 1) % LATENCY_TS_LEN;
-    if (ts->samples[prev].time == now) {
+    if (ts->samples[prev].time == now) {//原先的时间和现在是同一秒
         if (latency > ts->samples[prev].latency)
-            ts->samples[prev].latency = latency;
+            ts->samples[prev].latency = latency;//更新延时时间
         return;
     }
 
@@ -123,7 +123,7 @@ void latencyAddSample(char *event, mstime_t latency) {
     if (latency > ts->max) ts->max = latency;
 
     ts->idx++;
-    if (ts->idx == LATENCY_TS_LEN) ts->idx = 0;
+    if (ts->idx == LATENCY_TS_LEN) ts->idx = 0;//循环使用
 }
 
 /* Reset data for the specified event, or all the events data if 'event' is

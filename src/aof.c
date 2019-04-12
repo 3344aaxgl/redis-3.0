@@ -169,7 +169,7 @@ void aofRewriteBufferAppend(unsigned char *s, unsigned long len) {
 /* Write the buffer (possibly composed of multiple blocks) into the specified
  * fd. If a short write or any other error happens -1 is returned,
  * otherwise the number of bytes written is returned. */
-ssize_t aofRewriteBufferWrite(int fd) {
+ssize_t aofRewriteBufferWrite(int fd) {//写数据
     listNode *ln;
     listIter li;
     ssize_t count = 0;
@@ -197,7 +197,7 @@ ssize_t aofRewriteBufferWrite(int fd) {
 
 /* Starts a background task that performs fsync() against the specified
  * file descriptor (the one of the AOF file) in another thread. */
-void aof_background_fsync(int fd) {
+void aof_background_fsync(int fd) {//同步数据到磁盘
     bioCreateBackgroundJob(REDIS_BIO_AOF_FSYNC,(void*)(long)fd,NULL,NULL);
 }
 
@@ -277,10 +277,10 @@ void flushAppendOnlyFile(int force) {
 
     if (sdslen(server.aof_buf) == 0) return;
 
-    if (server.aof_fsync == AOF_FSYNC_EVERYSEC)
-        sync_in_progress = bioPendingJobsOfType(REDIS_BIO_AOF_FSYNC) != 0;
+    if (server.aof_fsync == AOF_FSYNC_EVERYSEC)//每秒同步一次
+        sync_in_progress = bioPendingJobsOfType(REDIS_BIO_AOF_FSYNC) != 0;//返回等待同步任务个数
 
-    if (server.aof_fsync == AOF_FSYNC_EVERYSEC && !force) {
+    if (server.aof_fsync == AOF_FSYNC_EVERYSEC && !force) {//不强制刷新
         /* With this append fsync policy we do background fsyncing.
          * If the fsync is still in progress we can try to delay
          * the write for a couple of seconds. */
@@ -288,16 +288,16 @@ void flushAppendOnlyFile(int force) {
             if (server.aof_flush_postponed_start == 0) {
                 /* No previous write postponing, remember that we are
                  * postponing the flush and return. */
-                server.aof_flush_postponed_start = server.unixtime;
+                server.aof_flush_postponed_start = server.unixtime;//第一次记录延缓时间
                 return;
-            } else if (server.unixtime - server.aof_flush_postponed_start < 2) {
+            } else if (server.unixtime - server.aof_flush_postponed_start < 2) {//小于2秒
                 /* We were already waiting for fsync to finish, but for less
                  * than two seconds this is still ok. Postpone again. */
                 return;
             }
             /* Otherwise fall trough, and go write since we can't wait
              * over two seconds. */
-            server.aof_delayed_fsync++;
+            server.aof_delayed_fsync++;//延迟次数
             redisLog(REDIS_NOTICE,"Asynchronous AOF fsync is taking too long (disk is busy?). Writing the AOF buffer without waiting for fsync to complete, this may slow down Redis.");
         }
     }
@@ -308,14 +308,14 @@ void flushAppendOnlyFile(int force) {
      * or alike */
 
     latencyStartMonitor(latency);
-    nwritten = write(server.aof_fd,server.aof_buf,sdslen(server.aof_buf));
-    latencyEndMonitor(latency);
+    nwritten = write(server.aof_fd,server.aof_buf,sdslen(server.aof_buf));//写数据
+    latencyEndMonitor(latency);//记录耗时
     /* We want to capture different events for delayed writes:
      * when the delay happens with a pending fsync, or with a saving child
      * active, and when the above two conditions are missing.
      * We also use an additional event name to save all samples which is
      * useful for graphing / monitoring purposes. */
-    if (sync_in_progress) {
+    if (sync_in_progress) {//添加延时事件
         latencyAddSampleIfNeeded("aof-write-pending-fsync",latency);
     } else if (server.aof_child_pid != -1 || server.rdb_child_pid != -1) {
         latencyAddSampleIfNeeded("aof-write-active-child",latency);
@@ -327,25 +327,25 @@ void flushAppendOnlyFile(int force) {
     /* We performed the write so reset the postponed flush sentinel to zero. */
     server.aof_flush_postponed_start = 0;
 
-    if (nwritten != (signed)sdslen(server.aof_buf)) {
+    if (nwritten != (signed)sdslen(server.aof_buf)) {//部分数据写入
         static time_t last_write_error_log = 0;
         int can_log = 0;
 
         /* Limit logging rate to 1 line per AOF_WRITE_LOG_ERROR_RATE seconds. */
-        if ((server.unixtime - last_write_error_log) > AOF_WRITE_LOG_ERROR_RATE) {
+        if ((server.unixtime - last_write_error_log) > AOF_WRITE_LOG_ERROR_RATE) {//每30秒一行错误日志
             can_log = 1;
             last_write_error_log = server.unixtime;
         }
 
         /* Log the AOF write error and record the error code. */
-        if (nwritten == -1) {
+        if (nwritten == -1) {//写入日志
             if (can_log) {
                 redisLog(REDIS_WARNING,"Error writing to the AOF file: %s",
                     strerror(errno));
                 server.aof_last_write_errno = errno;
             }
         } else {
-            if (can_log) {
+            if (can_log) {//部分写入成功
                 redisLog(REDIS_WARNING,"Short write while writing to "
                                        "the AOF file: (nwritten=%lld, "
                                        "expected=%lld)",
@@ -353,7 +353,7 @@ void flushAppendOnlyFile(int force) {
                                        (long long)sdslen(server.aof_buf));
             }
 
-            if (ftruncate(server.aof_fd, server.aof_current_size) == -1) {
+            if (ftruncate(server.aof_fd, server.aof_current_size) == -1) {//尝试移除不完整内容
                 if (can_log) {
                     redisLog(REDIS_WARNING, "Could not remove short write "
                              "from the append-only file.  Redis may refuse "
@@ -369,7 +369,7 @@ void flushAppendOnlyFile(int force) {
         }
 
         /* Handle the AOF write error. */
-        if (server.aof_fsync == AOF_FSYNC_ALWAYS) {
+        if (server.aof_fsync == AOF_FSYNC_ALWAYS) {//总是更新
             /* We can't recover when the fsync policy is ALWAYS since the
              * reply for the client is already in the output buffers, and we
              * have the contract with the user that on acknowledged write data
@@ -385,7 +385,7 @@ void flushAppendOnlyFile(int force) {
             /* Trim the sds buffer if there was a partial write, and there
              * was no way to undo it with ftruncate(2). */
             if (nwritten > 0) {
-                server.aof_current_size += nwritten;
+                server.aof_current_size += nwritten;//更新文件大小
                 sdsrange(server.aof_buf,nwritten,-1);
             }
             return; /* We'll try again on the next call... */
@@ -399,13 +399,13 @@ void flushAppendOnlyFile(int force) {
             server.aof_last_write_status = REDIS_OK;
         }
     }
-    server.aof_current_size += nwritten;
+    server.aof_current_size += nwritten;//更新文件大小
 
     /* Re-use AOF buffer when it is small enough. The maximum comes from the
      * arena size of 4k minus some overhead (but is otherwise arbitrary). */
-    if ((sdslen(server.aof_buf)+sdsavail(server.aof_buf)) < 4000) {
+    if ((sdslen(server.aof_buf)+sdsavail(server.aof_buf)) < 4000) {//缓存足够小，重新使用
         sdsclear(server.aof_buf);
-    } else {
+    } else {//释放空间
         sdsfree(server.aof_buf);
         server.aof_buf = sdsempty();
     }
