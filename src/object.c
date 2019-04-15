@@ -449,11 +449,11 @@ robj *getDecodedObject(robj *o) {
         incrRefCount(o);
         return o;
     }
-    if (o->type == REDIS_STRING && o->encoding == REDIS_ENCODING_INT) {
+    if (o->type == REDIS_STRING && o->encoding == REDIS_ENCODING_INT) {//数字编码字符串
         char buf[32];
 
-        ll2string(buf,32,(long)o->ptr);
-        dec = createStringObject(buf,strlen(buf));
+        ll2string(buf,32,(long)o->ptr);//转成字符串
+        dec = createStringObject(buf,strlen(buf));//创建字符串对象
         return dec;
     } else {
         redisPanic("Unknown encoding type");

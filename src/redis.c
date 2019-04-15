@@ -399,7 +399,7 @@ long long mstime(void) {
  * used in order to obtain the right coverage information. */
 void exitFromChild(int retcode) {
 #ifdef COVERAGE_TEST
-    exit(retcode);
+    exit(retcode);//清除I/O缓存，将文件缓冲区内容写回文件
 #else
     _exit(retcode);
 #endif

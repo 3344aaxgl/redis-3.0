@@ -314,7 +314,7 @@ size_t rioWriteBulkCount(rio *r, char prefix, int count) {
     int clen;
 
     cbuf[0] = prefix;
-    clen = 1+ll2string(cbuf+1,sizeof(cbuf)-1,count);
+    clen = 1+ll2string(cbuf+1,sizeof(cbuf)-1,count);//参数个数
     cbuf[clen++] = '\r';
     cbuf[clen++] = '\n';
     if (rioWrite(r,cbuf,clen) == 0) return 0;
