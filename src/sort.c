@@ -67,7 +67,7 @@ robj *lookupKeyByPattern(redisDb *db, robj *pattern, robj *subst) {
     /* If the pattern is "#" return the substitution object itself in order
      * to implement the "SORT ... GET #" feature. */
     spat = pattern->ptr;
-    if (spat[0] == '#' && spat[1] == '\0') {
+    if (spat[0] == '#' && spat[1] == '\0') {//获取被排序键的值
         incrRefCount(subst);
         return subst;
     }
@@ -81,40 +81,40 @@ robj *lookupKeyByPattern(redisDb *db, robj *pattern, robj *subst) {
     /* If we can't find '*' in the pattern we return NULL as to GET a
      * fixed key does not make sense. */
     p = strchr(spat,'*');
-    if (!p) {
+    if (!p) {//没有找到*，直接返回
         decrRefCount(subst);
         return NULL;
     }
 
     /* Find out if we're dealing with a hash dereference. */
-    if ((f = strstr(p+1, "->")) != NULL && *(f+2) != '\0') {
+    if ((f = strstr(p+1, "->")) != NULL && *(f+2) != '\0') {//hash表
         fieldlen = sdslen(spat)-(f-spat)-2;
-        fieldobj = createStringObject(f+2,fieldlen);
+        fieldobj = createStringObject(f+2,fieldlen);//获取真正要排序的键
     } else {
         fieldlen = 0;
     }
 
     /* Perform the '*' substitution. */
-    prefixlen = p-spat;
+    prefixlen = p-spat;//*号之前的长度
     sublen = sdslen(ssub);
     postfixlen = sdslen(spat)-(prefixlen+1)-(fieldlen ? fieldlen+2 : 0);
     keyobj = createStringObject(NULL,prefixlen+sublen+postfixlen);
     k = keyobj->ptr;
-    memcpy(k,spat,prefixlen);
-    memcpy(k+prefixlen,ssub,sublen);
-    memcpy(k+prefixlen+sublen,p+1,postfixlen);
+    memcpy(k,spat,prefixlen);//前缀
+    memcpy(k+prefixlen,ssub,sublen);//*替换成subst
+    memcpy(k+prefixlen+sublen,p+1,postfixlen);//要排序的键
     decrRefCount(subst); /* Incremented by decodeObject() */
 
     /* Lookup substituted key */
     o = lookupKeyRead(db,keyobj);
     if (o == NULL) goto noobj;
 
-    if (fieldobj) {
+    if (fieldobj) {//hash键
         if (o->type != REDIS_HASH) goto noobj;
 
         /* Retrieve value from hash by the field name. This operation
          * already increases the refcount of the returned object. */
-        o = hashTypeGetObject(o, fieldobj);
+        o = hashTypeGetObject(o, fieldobj);//在hash表中找
     } else {
         if (o->type != REDIS_STRING) goto noobj;
 
@@ -139,7 +139,7 @@ int sortCompare(const void *s1, const void *s2) {
     const redisSortObject *so1 = s1, *so2 = s2;
     int cmp;
 
-    if (!server.sort_alpha) {
+    if (!server.sort_alpha) {//数字比较
         /* Numeric sorting. Here it's trivial as we precomputed scores */
         if (so1->u.score > so2->u.score) {
             cmp = 1;
@@ -151,7 +151,7 @@ int sortCompare(const void *s1, const void *s2) {
              * This way the result of SORT is deterministic. */
             cmp = compareStringObjects(so1->obj,so2->obj);
         }
-    } else {
+    } else {//字符比较
         /* Alphanumeric sorting */
         if (server.sort_bypattern) {
             if (!so1->u.cmpobj || !so2->u.cmpobj) {
@@ -164,19 +164,19 @@ int sortCompare(const void *s1, const void *s2) {
                     cmp = 1;
             } else {
                 /* We have both the objects, compare them. */
-                if (server.sort_store) {
+                if (server.sort_store) {//字节比较
                     cmp = compareStringObjects(so1->u.cmpobj,so2->u.cmpobj);
                 } else {
                     /* Here we can use strcoll() directly as we are sure that
                      * the objects are decoded string objects. */
-                    cmp = strcoll(so1->u.cmpobj->ptr,so2->u.cmpobj->ptr);
+                    cmp = strcoll(so1->u.cmpobj->ptr,so2->u.cmpobj->ptr);//本地编码比较
                 }
             }
         } else {
             /* Compare elements directly. */
-            if (server.sort_store) {
+            if (server.sort_store) {//以二进制比较字符串对象
                 cmp = compareStringObjects(so1->obj,so2->obj);
-            } else {
+            } else {//以本地编码比较
                 cmp = collateStringObjects(so1->obj,so2->obj);
             }
         }
@@ -199,10 +199,10 @@ void sortCommand(redisClient *c) {
     redisSortObject *vector; /* Resulting vector to sort */
 
     /* Lookup the key to sort. It must be of the right types */
-    sortval = lookupKeyRead(c->db,c->argv[1]);
+    sortval = lookupKeyRead(c->db,c->argv[1]);//获取要排序的键
     if (sortval && sortval->type != REDIS_SET &&
                    sortval->type != REDIS_LIST &&
-                   sortval->type != REDIS_ZSET)
+                   sortval->type != REDIS_ZSET)//集合，链表，排序集合可以进行排序
     {
         addReply(c,shared.wrongtypeerr);
         return;
@@ -210,8 +210,8 @@ void sortCommand(redisClient *c) {
 
     /* Create a list of operations to perform for every sorted element.
      * Operations can be GET */
-    operations = listCreate();
-    listSetFreeMethod(operations,zfree);
+    operations = listCreate();//创建链表存储操作
+    listSetFreeMethod(operations,zfree);//设置空间释放函数
     j = 2; /* options start at argv[2] */
 
     /* Now we need to protect sortval incrementing its count, in the future
@@ -225,16 +225,16 @@ void sortCommand(redisClient *c) {
     /* The SORT command has an SQL-alike syntax, parse it */
     while(j < c->argc) {
         int leftargs = c->argc-j-1;
-        if (!strcasecmp(c->argv[j]->ptr,"asc")) {
+        if (!strcasecmp(c->argv[j]->ptr,"asc")) {//ASC
             desc = 0;
         } else if (!strcasecmp(c->argv[j]->ptr,"desc")) {
             desc = 1;
-        } else if (!strcasecmp(c->argv[j]->ptr,"alpha")) {
+        } else if (!strcasecmp(c->argv[j]->ptr,"alpha")) {//ALPHA
             alpha = 1;
-        } else if (!strcasecmp(c->argv[j]->ptr,"limit") && leftargs >= 2) {
-            if ((getLongFromObjectOrReply(c, c->argv[j+1], &limit_start, NULL)
+        } else if (!strcasecmp(c->argv[j]->ptr,"limit") && leftargs >= 2) {//个数限制
+            if ((getLongFromObjectOrReply(c, c->argv[j+1], &limit_start, NULL)//跳过个数
                  != REDIS_OK) ||
-                (getLongFromObjectOrReply(c, c->argv[j+2], &limit_count, NULL)
+                (getLongFromObjectOrReply(c, c->argv[j+2], &limit_count, NULL)//总数
                  != REDIS_OK))
             {
                 syntax_error++;
@@ -242,18 +242,18 @@ void sortCommand(redisClient *c) {
             }
             j+=2;
         } else if (!strcasecmp(c->argv[j]->ptr,"store") && leftargs >= 1) {
-            storekey = c->argv[j+1];
+            storekey = c->argv[j+1];//存储数据的键
             j++;
         } else if (!strcasecmp(c->argv[j]->ptr,"by") && leftargs >= 1) {
-            sortby = c->argv[j+1];
+            sortby = c->argv[j+1];//排序外键
             /* If the BY pattern does not contain '*', i.e. it is constant,
              * we don't need to sort nor to lookup the weight keys. */
-            if (strchr(c->argv[j+1]->ptr,'*') == NULL) {
+            if (strchr(c->argv[j+1]->ptr,'*') == NULL) {//没有*，无需排序
                 dontsort = 1;
             } else {
                 /* If BY is specified with a real patter, we can't accept
                  * it in cluster mode. */
-                if (server.cluster_enabled) {
+                if (server.cluster_enabled) {//集群
                     addReplyError(c,"BY option of SORT denied in Cluster mode.");
                     syntax_error++;
                     break;
@@ -265,7 +265,7 @@ void sortCommand(redisClient *c) {
                 addReplyError(c,"GET option of SORT denied in Cluster mode.");
                 syntax_error++;
                 break;
-            }
+            }//存储GET操作
             listAddNodeTail(operations,createSortOperation(
                 REDIS_SORT_GET,c->argv[j+1]));
             getop++;
@@ -303,7 +303,7 @@ void sortCommand(redisClient *c) {
 
     /* Destructively convert encoded sorted sets for SORT. */
     if (sortval->type == REDIS_ZSET)
-        zsetConvert(sortval, REDIS_ENCODING_SKIPLIST);
+        zsetConvert(sortval, REDIS_ENCODING_SKIPLIST);//转成跳表
 
     /* Objtain the length of the object to sort. */
     switch(sortval->type) {
@@ -311,11 +311,11 @@ void sortCommand(redisClient *c) {
     case REDIS_SET: vectorlen =  setTypeSize(sortval); break;
     case REDIS_ZSET: vectorlen = dictSize(((zset*)sortval->ptr)->dict); break;
     default: vectorlen = 0; redisPanic("Bad SORT type"); /* Avoid GCC warning */
-    }
+    }//取得大小
 
     /* Perform LIMIT start,count sanity checking. */
-    start = (limit_start < 0) ? 0 : limit_start;
-    end = (limit_count < 0) ? vectorlen-1 : start+limit_count-1;
+    start = (limit_start < 0) ? 0 : limit_start;//跳过个数大于等于0
+    end = (limit_count < 0) ? vectorlen-1 : start+limit_count-1;//结束位
     if (start >= vectorlen) {
         start = vectorlen-1;
         end = vectorlen-2;
@@ -346,7 +346,7 @@ void sortCommand(redisClient *c) {
     if (sortval->type == REDIS_LIST) {
         listTypeIterator *li = listTypeInitIterator(sortval,0,REDIS_TAIL);
         listTypeEntry entry;
-        while(listTypeNext(li,&entry)) {
+        while(listTypeNext(li,&entry)) {//数据放入数组
             vector[j].obj = listTypeGet(&entry);
             vector[j].u.score = 0;
             vector[j].u.cmpobj = NULL;
@@ -363,7 +363,7 @@ void sortCommand(redisClient *c) {
             j++;
         }
         setTypeReleaseIterator(si);
-    } else if (sortval->type == REDIS_ZSET && dontsort) {
+    } else if (sortval->type == REDIS_ZSET && dontsort) {//已经有序
         /* Special handling for a sorted set, if 'dontsort' is true.
          * This makes sure we return elements in the sorted set original
          * ordering, accordingly to DESC / ASC options.
@@ -372,20 +372,20 @@ void sortCommand(redisClient *c) {
          * way, just getting the required range, as an optimization. */
 
         zset *zs = sortval->ptr;
-        zskiplist *zsl = zs->zsl;
+        zskiplist *zsl = zs->zsl;//跳跃表
         zskiplistNode *ln;
         robj *ele;
         int rangelen = vectorlen;
 
         /* Check if starting point is trivial, before doing log(N) lookup. */
         if (desc) {
-            long zsetlen = dictSize(((zset*)sortval->ptr)->dict);
+            long zsetlen = dictSize(((zset*)sortval->ptr)->dict);//大小
 
-            ln = zsl->tail;
+            ln = zsl->tail;//尾指针
             if (start > 0)
-                ln = zslGetElementByRank(zsl,zsetlen-start);
+                ln = zslGetElementByRank(zsl,zsetlen-start);//取后面数据
         } else {
-            ln = zsl->header->level[0].forward;
+            ln = zsl->header->level[0].forward;//正向取值
             if (start > 0)
                 ln = zslGetElementByRank(zsl,start+1);
         }
@@ -405,7 +405,7 @@ void sortCommand(redisClient *c) {
          * to make sure start is set to 0. */
         end -= start;
         start = 0;
-    } else if (sortval->type == REDIS_ZSET) {
+    } else if (sortval->type == REDIS_ZSET) {//有序集合
         dict *set = ((zset*)sortval->ptr)->dict;
         dictIterator *di;
         dictEntry *setele;
@@ -428,14 +428,14 @@ void sortCommand(redisClient *c) {
             robj *byval;
             if (sortby) {
                 /* lookup value to sort by */
-                byval = lookupKeyByPattern(c->db,sortby,vector[j].obj);
+                byval = lookupKeyByPattern(c->db,sortby,vector[j].obj);//按照sortby查找相关键
                 if (!byval) continue;
             } else {
                 /* use object itself to sort by */
-                byval = vector[j].obj;
+                byval = vector[j].obj;//用对象本身进行排序
             }
 
-            if (alpha) {
+            if (alpha) {//字母
                 if (sortby) vector[j].u.cmpobj = getDecodedObject(byval);
             } else {
                 if (sdsEncodedObject(byval)) {

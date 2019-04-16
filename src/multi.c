@@ -38,7 +38,7 @@ void initClientMultiState(redisClient *c) {
 }
 
 /* Release all the resources associated with MULTI/EXEC state */
-void freeClientMultiState(redisClient *c) {
+void freeClientMultiState(redisClient *c) {//释放事务空间
     int j;
 
     for (j = 0; j < c->mstate.count; j++) {
@@ -53,27 +53,27 @@ void freeClientMultiState(redisClient *c) {
 }
 
 /* Add a new command into the MULTI commands queue */
-void queueMultiCommand(redisClient *c) {
+void queueMultiCommand(redisClient *c) {//将命令加入事务队列
     multiCmd *mc;
     int j;
 
     c->mstate.commands = zrealloc(c->mstate.commands,
-            sizeof(multiCmd)*(c->mstate.count+1));
+            sizeof(multiCmd)*(c->mstate.count+1));//分配空间
     mc = c->mstate.commands+c->mstate.count;
     mc->cmd = c->cmd;
     mc->argc = c->argc;
-    mc->argv = zmalloc(sizeof(robj*)*c->argc);
-    memcpy(mc->argv,c->argv,sizeof(robj*)*c->argc);
+    mc->argv = zmalloc(sizeof(robj*)*c->argc);//分配参数空间
+    memcpy(mc->argv,c->argv,sizeof(robj*)*c->argc);//拷贝参数
     for (j = 0; j < c->argc; j++)
         incrRefCount(mc->argv[j]);
     c->mstate.count++;
 }
 
-void discardTransaction(redisClient *c) {
+void discardTransaction(redisClient *c) {//取消事务
     freeClientMultiState(c);
     initClientMultiState(c);
-    c->flags &= ~(REDIS_MULTI|REDIS_DIRTY_CAS|REDIS_DIRTY_EXEC);
-    unwatchAllKeys(c);
+    c->flags &= ~(REDIS_MULTI|REDIS_DIRTY_CAS|REDIS_DIRTY_EXEC);//清除标签
+    unwatchAllKeys(c);//
 }
 
 /* Flag the transacation as DIRTY_EXEC so that EXEC will fail.
@@ -88,7 +88,7 @@ void multiCommand(redisClient *c) {
         addReplyError(c,"MULTI calls can not be nested");
         return;
     }
-    c->flags |= REDIS_MULTI;
+    c->flags |= REDIS_MULTI;//
     addReply(c,shared.ok);
 }
 
@@ -129,7 +129,7 @@ void execCommand(redisClient *c) {
      * A failed EXEC in the first case returns a multi bulk nil object
      * (technically it is not an error but a special behavior), while
      * in the second an EXECABORT error is returned. */
-    if (c->flags & (REDIS_DIRTY_CAS|REDIS_DIRTY_EXEC)) {
+    if (c->flags & (REDIS_DIRTY_CAS|REDIS_DIRTY_EXEC)) {//出错，事务无法执行
         addReply(c, c->flags & REDIS_DIRTY_EXEC ? shared.execaborterr :
                                                   shared.nullmultibulk);
         discardTransaction(c);
@@ -142,7 +142,7 @@ void execCommand(redisClient *c) {
     orig_argc = c->argc;
     orig_cmd = c->cmd;
     addReplyMultiBulkLen(c,c->mstate.count);
-    for (j = 0; j < c->mstate.count; j++) {
+    for (j = 0; j < c->mstate.count; j++) {//遍历命令
         c->argc = c->mstate.commands[j].argc;
         c->argv = c->mstate.commands[j].argv;
         c->cmd = c->mstate.commands[j].cmd;
@@ -156,17 +156,17 @@ void execCommand(redisClient *c) {
             must_propagate = 1;
         }
 
-        call(c,REDIS_CALL_FULL);
+        call(c,REDIS_CALL_FULL);//执行命令
 
         /* Commands may alter argc/argv, restore mstate. */
-        c->mstate.commands[j].argc = c->argc;
+        c->mstate.commands[j].argc = c->argc;//保存参数和命令
         c->mstate.commands[j].argv = c->argv;
         c->mstate.commands[j].cmd = c->cmd;
     }
     c->argv = orig_argv;
     c->argc = orig_argc;
     c->cmd = orig_cmd;
-    discardTransaction(c);
+    discardTransaction(c);//释放事务
     /* Make sure the EXEC command will be propagated as well if MULTI
      * was already propagated. */
     if (must_propagate) server.dirty++;
@@ -209,17 +209,17 @@ void watchForKey(redisClient *c, robj *key) {
     listRewind(c->watched_keys,&li);
     while((ln = listNext(&li))) {
         wk = listNodeValue(ln);
-        if (wk->db == c->db && equalStringObjects(key,wk->key))
+        if (wk->db == c->db && equalStringObjects(key,wk->key))//已经监视这个key
             return; /* Key already watched */
     }
     /* This key is not already watched in this DB. Let's add it */
-    clients = dictFetchValue(c->db->watched_keys,key);
-    if (!clients) {
+    clients = dictFetchValue(c->db->watched_keys,key);//获取监视改键的客户端列表
+    if (!clients) {//链表不存在
         clients = listCreate();
         dictAdd(c->db->watched_keys,key,clients);
         incrRefCount(key);
     }
-    listAddNodeTail(clients,c);
+    listAddNodeTail(clients,c);//添加到链表尾
     /* Add the new key to the list of keys watched by this client */
     wk = zmalloc(sizeof(*wk));
     wk->key = key;
@@ -230,7 +230,7 @@ void watchForKey(redisClient *c, robj *key) {
 
 /* Unwatch all the keys watched by this client. To clean the EXEC dirty
  * flag is up to the caller. */
-void unwatchAllKeys(redisClient *c) {
+void unwatchAllKeys(redisClient *c) {//不再监视
     listIter li;
     listNode *ln;
 
@@ -258,7 +258,7 @@ void unwatchAllKeys(redisClient *c) {
 
 /* "Touch" a key, so that if this key is being WATCHed by some client the
  * next EXEC will fail. */
-void touchWatchedKey(redisDb *db, robj *key) {
+void touchWatchedKey(redisDb *db, robj *key) {//设置键被修改
     list *clients;
     listIter li;
     listNode *ln;
@@ -281,24 +281,24 @@ void touchWatchedKey(redisDb *db, robj *key) {
  * flush but will be deleted as effect of the flushing operation should
  * be touched. "dbid" is the DB that's getting the flush. -1 if it is
  * a FLUSHALL operation (all the DBs flushed). */
-void touchWatchedKeysOnFlush(int dbid) {
+void touchWatchedKeysOnFlush(int dbid) {//执行FLUSHDB或者FLUSHALL命令
     listIter li1, li2;
     listNode *ln;
 
     /* For every client, check all the waited keys */
     listRewind(server.clients,&li1);
-    while((ln = listNext(&li1))) {
+    while((ln = listNext(&li1))) {//遍历所有的客户端
         redisClient *c = listNodeValue(ln);
         listRewind(c->watched_keys,&li2);
-        while((ln = listNext(&li2))) {
+        while((ln = listNext(&li2))) {//遍历客户端监视的键
             watchedKey *wk = listNodeValue(ln);
 
             /* For every watched key matching the specified DB, if the
              * key exists, mark the client as dirty, as the key will be
              * removed. */
-            if (dbid == -1 || wk->db->id == dbid) {
+            if (dbid == -1 || wk->db->id == dbid) {//数据库ID相同
                 if (dictFind(wk->db->dict, wk->key->ptr) != NULL)
-                    c->flags |= REDIS_DIRTY_CAS;
+                    c->flags |= REDIS_DIRTY_CAS;//将客户端设置为REDIS_DIRTY_CAS
             }
         }
     }

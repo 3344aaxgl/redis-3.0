@@ -477,10 +477,10 @@ int compareStringObjectsWithFlags(robj *a, robj *b, int flags) {
     size_t alen, blen, minlen;
 
     if (a == b) return 0;
-    if (sdsEncodedObject(a)) {
+    if (sdsEncodedObject(a)) {//字符串
         astr = a->ptr;
         alen = sdslen(astr);
-    } else {
+    } else {//数字
         alen = ll2string(bufa,sizeof(bufa),(long) a->ptr);
         astr = bufa;
     }
@@ -497,7 +497,7 @@ int compareStringObjectsWithFlags(robj *a, robj *b, int flags) {
         int cmp;
 
         minlen = (alen < blen) ? alen : blen;
-        cmp = memcmp(astr,bstr,minlen);
+        cmp = memcmp(astr,bstr,minlen);//按字节比较
         if (cmp == 0) return alen-blen;
         return cmp;
     }
