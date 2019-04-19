@@ -63,7 +63,7 @@ static inline void	 swapfunc (char *, char *, size_t, int);
 }
 
 #define SWAPINIT(a, es) swaptype = ((char *)a - (char *)0) % sizeof(long) || \
-	es % sizeof(long) ? 2 : es == sizeof(long)? 0 : 1;
+	es % sizeof(long) ? 2 : es == sizeof(long)? 0 : 1;//判断是不是内存对齐
 
 static inline void
 swapfunc(char *a, char *b, size_t n, int swaptype)
@@ -103,31 +103,31 @@ _pqsort(void *a, size_t n, size_t es,
 	size_t d, r;
 	int swaptype, cmp_result;
 
-loop:	SWAPINIT(a, es);
-	if (n < 7) {
+loop:	SWAPINIT(a, es);//内存对齐
+	if (n < 7) {//小于7个数冒泡
 		for (pm = (char *) a + es; pm < (char *) a + n * es; pm += es)
 			for (pl = pm; pl > (char *) a && cmp(pl - es, pl) > 0;
 			     pl -= es)
 				swap(pl, pl - es);
 		return;
 	}
-	pm = (char *) a + (n / 2) * es;
+	pm = (char *) a + (n / 2) * es;//模糊取中位数
 	if (n > 7) {
 		pl = (char *) a;
 		pn = (char *) a + (n - 1) * es;
 		if (n > 40) {
-			d = (n / 8) * es;
-			pl = med3(pl, pl + d, pl + 2 * d, cmp);
-			pm = med3(pm - d, pm, pm + d, cmp);
-			pn = med3(pn - 2 * d, pn - d, pn, cmp);
+			d = (n / 8) * es;//分成8个子区间
+			pl = med3(pl, pl + d, pl + 2 * d, cmp);//左边三个区间中位数
+			pm = med3(pm - d, pm, pm + d, cmp);//中间三个区间中位数
+			pn = med3(pn - 2 * d, pn - d, pn, cmp);//右边三个区间中位数
 		}
-		pm = med3(pl, pm, pn, cmp);
+		pm = med3(pl, pm, pn, cmp);//取三个中位数中的中位数
 	}
-	swap(a, pm);
-	pa = pb = (char *) a + es;
+	swap(a, pm);//交换第一个元素和中位数
+	pa = pb = (char *) a + es;//开始排序的第一个元素
 
-	pc = pd = (char *) a + (n - 1) * es;
-	for (;;) {
+	pc = pd = (char *) a + (n - 1) * es;//最后一个元素
+	for (;;) {//排序部分
 		while (pb <= pc && (cmp_result = cmp(pb, a)) <= 0) {
 			if (cmp_result == 0) {
 				swap(pa, pb);

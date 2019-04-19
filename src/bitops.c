@@ -41,11 +41,11 @@ static int getBitOffsetFromArgument(redisClient *c, robj *o, size_t *offset) {
     long long loffset;
     char *err = "bit offset is not an integer or out of range";
 
-    if (getLongLongFromObjectOrReply(c,o,&loffset,err) != REDIS_OK)
+    if (getLongLongFromObjectOrReply(c,o,&loffset,err) != REDIS_OK)//获取偏移量
         return REDIS_ERR;
 
     /* Limit offset to 512MB in bytes */
-    if ((loffset < 0) || ((unsigned long long)loffset >> 3) >= (512*1024*1024))
+    if ((loffset < 0) || ((unsigned long long)loffset >> 3) >= (512*1024*1024))//小于0或大于512M
     {
         addReplyError(c,err);
         return REDIS_ERR;
@@ -58,14 +58,14 @@ static int getBitOffsetFromArgument(redisClient *c, robj *o, size_t *offset) {
 /* Count number of bits set in the binary array pointed by 's' and long
  * 'count' bytes. The implementation of this function is required to
  * work with a input string length up to 512 MB. */
-size_t redisPopcount(void *s, long count) {
+size_t redisPopcount(void *s, long count) {//统计位1个数
     size_t bits = 0;
     unsigned char *p = s;
-    uint32_t *p4;
+    uint32_t *p4;//1的位数
     static const unsigned char bitsinbyte[256] = {0,1,1,2,1,2,2,3,1,2,2,3,2,3,3,4,1,2,2,3,2,3,3,4,2,3,3,4,3,4,4,5,1,2,2,3,2,3,3,4,2,3,3,4,3,4,4,5,2,3,3,4,3,4,4,5,3,4,4,5,4,5,5,6,1,2,2,3,2,3,3,4,2,3,3,4,3,4,4,5,2,3,3,4,3,4,4,5,3,4,4,5,4,5,5,6,2,3,3,4,3,4,4,5,3,4,4,5,4,5,5,6,3,4,4,5,4,5,5,6,4,5,5,6,5,6,6,7,1,2,2,3,2,3,3,4,2,3,3,4,3,4,4,5,2,3,3,4,3,4,4,5,3,4,4,5,4,5,5,6,2,3,3,4,3,4,4,5,3,4,4,5,4,5,5,6,3,4,4,5,4,5,5,6,4,5,5,6,5,6,6,7,2,3,3,4,3,4,4,5,3,4,4,5,4,5,5,6,3,4,4,5,4,5,5,6,4,5,5,6,5,6,6,7,3,4,4,5,4,5,5,6,4,5,5,6,5,6,6,7,4,5,5,6,5,6,6,7,5,6,6,7,6,7,7,8};
 
     /* Count initial bytes not aligned to 32 bit. */
-    while((unsigned long)p & 3 && count) {
+    while((unsigned long)p & 3 && count) {//
         bits += bitsinbyte[*p++];
         count--;
     }
@@ -136,10 +136,10 @@ long redisBitpos(void *s, unsigned long count, int bit) {
      * aligned. */
 
     /* Skip initial bits not aligned to sizeof(unsigned long) byte by byte. */
-    skipval = bit ? 0 : UCHAR_MAX;
+    skipval = bit ? 0 : UCHAR_MAX;//bit为1则跳过所有为0的，bit为0的则跳过所有为1的
     c = (unsigned char*) s;
     while((unsigned long)c & (sizeof(*l)-1) && count) {
-        if (*c != skipval) break;
+        if (*c != skipval) break;//不等于要跳过的值，退出
         c++;
         count--;
         pos += 8;
@@ -163,7 +163,7 @@ long redisBitpos(void *s, unsigned long count, int bit) {
      * Note that the loading is designed to work even when the bytes left
      * (count) are less than a full word. We pad it with zero on the right. */
     c = (unsigned char*)l;
-    for (j = 0; j < sizeof(*l); j++) {
+    for (j = 0; j < sizeof(*l); j++) {//剩余字节存入word
         word <<= 8;
         if (count) {
             word |= *c;
@@ -185,9 +185,9 @@ long redisBitpos(void *s, unsigned long count, int bit) {
      * simple trick. */
     one = ULONG_MAX; /* All bits set to 1.*/
     one >>= 1;       /* All bits set to 1 but the MSB. */
-    one = ~one;      /* All bits set to 0 but the MSB. */
+    one = ~one;      /* All bits set to 0 but the MSB. *///最高位为1，其他设置成0
 
-    while(one) {
+    while(one) {//一位位比较
         if (((one & word) != 0) == bit) return pos;
         pos++;
         one >>= 1;
@@ -217,29 +217,29 @@ void setbitCommand(redisClient *c) {
     int byteval, bitval;
     long on;
 
-    if (getBitOffsetFromArgument(c,c->argv[2],&bitoffset) != REDIS_OK)
+    if (getBitOffsetFromArgument(c,c->argv[2],&bitoffset) != REDIS_OK)//位置
         return;
 
-    if (getLongFromObjectOrReply(c,c->argv[3],&on,err) != REDIS_OK)
+    if (getLongFromObjectOrReply(c,c->argv[3],&on,err) != REDIS_OK)//0或1
         return;
 
     /* Bits can only be set or cleared... */
-    if (on & ~1) {
+    if (on & ~1) {//只能是0或1
         addReplyError(c,err);
         return;
     }
 
-    o = lookupKeyWrite(c->db,c->argv[1]);
+    o = lookupKeyWrite(c->db,c->argv[1]);//寻找键
     if (o == NULL) {
         o = createObject(REDIS_STRING,sdsempty());
-        dbAdd(c->db,c->argv[1],o);
+        dbAdd(c->db,c->argv[1],o);//没找到则添加空对象
     } else {
         if (checkType(c,o,REDIS_STRING)) return;
-        o = dbUnshareStringValue(c->db,c->argv[1],o);
+        o = dbUnshareStringValue(c->db,c->argv[1],o);//需要修改对象，创建一个新对象
     }
 
     /* Grow sds value to the right length if necessary */
-    byte = bitoffset >> 3;
+    byte = bitoffset >> 3;//
     o->ptr = sdsgrowzero(o->ptr,byte+1);
 
     /* Get current values */
