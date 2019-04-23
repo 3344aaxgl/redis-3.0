@@ -239,19 +239,19 @@ void setbitCommand(redisClient *c) {
     }
 
     /* Grow sds value to the right length if necessary */
-    byte = bitoffset >> 3;//
-    o->ptr = sdsgrowzero(o->ptr,byte+1);
+    byte = bitoffset >> 3;//除以8，得到是哪个字节
+    o->ptr = sdsgrowzero(o->ptr,byte+1);//扩充字符串
 
     /* Get current values */
-    byteval = ((uint8_t*)o->ptr)[byte];
-    bit = 7 - (bitoffset & 0x7);
-    bitval = byteval & (1 << bit);
+    byteval = ((uint8_t*)o->ptr)[byte];//取得要修改的字节
+    bit = 7 - (bitoffset & 0x7);//取的位
+    bitval = byteval & (1 << bit);//取当前位置值
 
     /* Update byte with new bit value and return original value */
-    byteval &= ~(1 << bit);
-    byteval |= ((on & 0x1) << bit);
-    ((uint8_t*)o->ptr)[byte] = byteval;
-    signalModifiedKey(c->db,c->argv[1]);
+    byteval &= ~(1 << bit);//置修改位为0
+    byteval |= ((on & 0x1) << bit);//修改位置上的值
+    ((uint8_t*)o->ptr)[byte] = byteval;//修改整个字节
+    signalModifiedKey(c->db,c->argv[1]);//发出键修改信号
     notifyKeyspaceEvent(REDIS_NOTIFY_STRING,"setbit",c->argv[1],c->db->id);
     server.dirty++;
     addReply(c, bitval ? shared.cone : shared.czero);
@@ -265,19 +265,19 @@ void getbitCommand(redisClient *c) {
     size_t byte, bit;
     size_t bitval = 0;
 
-    if (getBitOffsetFromArgument(c,c->argv[2],&bitoffset) != REDIS_OK)
+    if (getBitOffsetFromArgument(c,c->argv[2],&bitoffset) != REDIS_OK)//换算偏移字节和偏移位
         return;
 
     if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.czero)) == NULL ||
         checkType(c,o,REDIS_STRING)) return;
 
-    byte = bitoffset >> 3;
+    byte = bitoffset >> 3;//得到字节
     bit = 7 - (bitoffset & 0x7);
     if (sdsEncodedObject(o)) {
-        if (byte < sdslen(o->ptr))
+        if (byte < sdslen(o->ptr))//字节数小于字符串长度，直接获取
             bitval = ((uint8_t*)o->ptr)[byte] & (1 << bit);
     } else {
-        if (byte < (size_t)ll2string(llbuf,sizeof(llbuf),(long)o->ptr))
+        if (byte < (size_t)ll2string(llbuf,sizeof(llbuf),(long)o->ptr))//数字转string
             bitval = llbuf[byte] & (1 << bit);
     }
 
@@ -308,7 +308,7 @@ void bitopCommand(redisClient *c) {
     else {
         addReply(c,shared.syntaxerr);
         return;
-    }
+    }//翻译操作类型
 
     /* Sanity check: NOT accepts only a single key argument. */
     if (op == BITOP_NOT && c->argc != 4) {
@@ -317,14 +317,14 @@ void bitopCommand(redisClient *c) {
     }
 
     /* Lookup keys, and store pointers to the string objects into an array. */
-    numkeys = c->argc - 3;
+    numkeys = c->argc - 3;//减去前面三个参数
     src = zmalloc(sizeof(unsigned char*) * numkeys);
     len = zmalloc(sizeof(long) * numkeys);
     objects = zmalloc(sizeof(robj*) * numkeys);
     for (j = 0; j < numkeys; j++) {
-        o = lookupKeyRead(c->db,c->argv[j+3]);
+        o = lookupKeyRead(c->db,c->argv[j+3]);//查找键
         /* Handle non-existing keys as empty strings. */
-        if (o == NULL) {
+        if (o == NULL) {//跳过空键
             objects[j] = NULL;
             src[j] = NULL;
             len[j] = 0;
@@ -332,7 +332,7 @@ void bitopCommand(redisClient *c) {
             continue;
         }
         /* Return an error if one of the keys is not a string. */
-        if (checkType(c,o,REDIS_STRING)) {
+        if (checkType(c,o,REDIS_STRING)) {//字符串
             unsigned long i;
             for (i = 0; i < j; i++) {
                 if (objects[i])
@@ -352,7 +352,7 @@ void bitopCommand(redisClient *c) {
 
     /* Compute the bit operation, if at least one string is not empty. */
     if (maxlen) {
-        res = (unsigned char*) sdsnewlen(NULL,maxlen);
+        res = (unsigned char*) sdsnewlen(NULL,maxlen);//创建新字符串
         unsigned char output, byte;
         unsigned long i;
 
@@ -360,7 +360,7 @@ void bitopCommand(redisClient *c) {
          * can take a fast path that performs much better than the
          * vanilla algorithm. */
         j = 0;
-        if (minlen >= sizeof(unsigned long)*4 && numkeys <= 16) {
+        if (minlen >= sizeof(unsigned long)*4 && numkeys <= 16) {//小于16个键
             unsigned long *lp[16];
             unsigned long *lres = (unsigned long*) res;
 
@@ -370,7 +370,7 @@ void bitopCommand(redisClient *c) {
 
             /* Different branches per different operations for speed (sorry). */
             if (op == BITOP_AND) {
-                while(minlen >= sizeof(unsigned long)*4) {
+                while(minlen >= sizeof(unsigned long)*4) {//一次处理32位
                     for (i = 1; i < numkeys; i++) {
                         lres[0] &= lp[i][0];
                         lres[1] &= lp[i][1];
@@ -422,7 +422,7 @@ void bitopCommand(redisClient *c) {
         }
 
         /* j is set to the next byte to process by the previous loop. */
-        for (; j < maxlen; j++) {
+        for (; j < maxlen; j++) {//遍历所有的键
             output = (len[0] <= j) ? 0 : src[0][j];
             if (op == BITOP_NOT) output = ~output;
             for (i = 1; i < numkeys; i++) {
@@ -459,7 +459,7 @@ void bitopCommand(redisClient *c) {
 }
 
 /* BITCOUNT key [start end] */
-void bitcountCommand(redisClient *c) {
+void bitcountCommand(redisClient *c) {//统计位1个数
     robj *o;
     long start, end, strlen;
     unsigned char *p;
@@ -513,7 +513,7 @@ void bitcountCommand(redisClient *c) {
 }
 
 /* BITPOS key bit [start [end]] */
-void bitposCommand(redisClient *c) {
+void bitposCommand(redisClient *c) {//第一位为1的位置
     robj *o;
     long bit, start, end, strlen;
     unsigned char *p;
@@ -522,7 +522,7 @@ void bitposCommand(redisClient *c) {
 
     /* Parse the bit argument to understand what we are looking for, set
      * or clear bits. */
-    if (getLongFromObjectOrReply(c,c->argv[2],&bit,NULL) != REDIS_OK)
+    if (getLongFromObjectOrReply(c,c->argv[2],&bit,NULL) != REDIS_OK)//获取参数值
         return;
     if (bit != 0 && bit != 1) {
         addReplyError(c, "The bit argument must be 1 or 0.");
@@ -540,12 +540,12 @@ void bitposCommand(redisClient *c) {
 
     /* Set the 'p' pointer to the string, that can be just a stack allocated
      * array if our string was integer encoded. */
-    if (o->encoding == REDIS_ENCODING_INT) {
+    if (o->encoding == REDIS_ENCODING_INT) {//整数编码
         p = (unsigned char*) llbuf;
-        strlen = ll2string(llbuf,sizeof(llbuf),(long)o->ptr);
+        strlen = ll2string(llbuf,sizeof(llbuf),(long)o->ptr);//转成string获取长度
     } else {
         p = (unsigned char*) o->ptr;
-        strlen = sdslen(o->ptr);
+        strlen = sdslen(o->ptr);//获取长度
     }
 
     /* Parse start/end range if any. */
