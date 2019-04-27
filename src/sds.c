@@ -389,14 +389,14 @@ sds sdscatvprintf(sds s, const char *fmt, va_list ap) {
     while(1) {
         buf[buflen-2] = '\0';
         va_copy(cpy,ap);
-        vsnprintf(buf, buflen, fmt, cpy);
+        vsnprintf(buf, buflen, fmt, cpy);//将参数放入缓冲区
         va_end(cpy);
-        if (buf[buflen-2] != '\0') {
+        if (buf[buflen-2] != '\0') {//空间不够
             if (buf != staticbuf) zfree(buf);
             buflen *= 2;
-            buf = zmalloc(buflen);
+            buf = zmalloc(buflen);//重新分配空间
             if (buf == NULL) return NULL;
-            continue;
+            continue;//再次解析参数
         }
         break;
     }

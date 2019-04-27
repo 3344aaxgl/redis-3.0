@@ -48,7 +48,7 @@
 
 #include "anet.h"
 
-static void anetSetError(char *err, const char *fmt, ...)
+static void anetSetError(char *err, const char *fmt, ...)//处理变参数
 {
     va_list ap;
 
@@ -58,18 +58,18 @@ static void anetSetError(char *err, const char *fmt, ...)
     va_end(ap);
 }
 
-int anetSetBlock(char *err, int fd, int non_block) {
+int anetSetBlock(char *err, int fd, int non_block) {//设置是否阻塞
     int flags;
 
     /* Set the socket blocking (if non_block is zero) or non-blocking.
      * Note that fcntl(2) for F_GETFL and F_SETFL can't be
      * interrupted by a signal. */
-    if ((flags = fcntl(fd, F_GETFL)) == -1) {
+    if ((flags = fcntl(fd, F_GETFL)) == -1) {//先获取
         anetSetError(err, "fcntl(F_GETFL): %s", strerror(errno));
         return ANET_ERR;
     }
 
-    if (non_block)
+    if (non_block)//设置
         flags |= O_NONBLOCK;
     else
         flags &= ~O_NONBLOCK;
@@ -95,7 +95,7 @@ int anetBlock(char *err, int fd) {
 int anetKeepAlive(char *err, int fd, int interval)
 {
     int val = 1;
-
+    //设置报货
     if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) == -1)
     {
         anetSetError(err, "setsockopt SO_KEEPALIVE: %s", strerror(errno));
@@ -138,7 +138,7 @@ int anetKeepAlive(char *err, int fd, int interval)
     return ANET_OK;
 }
 
-static int anetSetTcpNoDelay(char *err, int fd, int val)
+static int anetSetTcpNoDelay(char *err, int fd, int val)//设置不延迟发送
 {
     if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val)) == -1)
     {
@@ -159,7 +159,7 @@ int anetDisableTcpNoDelay(char *err, int fd)
 }
 
 
-int anetSetSendBuffer(char *err, int fd, int buffsize)
+int anetSetSendBuffer(char *err, int fd, int buffsize)//设置发送缓冲区
 {
     if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &buffsize, sizeof(buffsize)) == -1)
     {
@@ -181,7 +181,7 @@ int anetTcpKeepAlive(char *err, int fd)
 
 /* Set the socket send timeout (SO_SNDTIMEO socket option) to the specified
  * number of milliseconds, or disable it if the 'ms' argument is zero. */
-int anetSendTimeout(char *err, int fd, long long ms) {
+int anetSendTimeout(char *err, int fd, long long ms) {//发送超时
     struct timeval tv;
 
     tv.tv_sec = ms/1000;
@@ -207,11 +207,11 @@ int anetGenericResolve(char *err, char *host, char *ipbuf, size_t ipbuf_len,
     int rv;
 
     memset(&hints,0,sizeof(hints));
-    if (flags & ANET_IP_ONLY) hints.ai_flags = AI_NUMERICHOST;
-    hints.ai_family = AF_UNSPEC;
+    if (flags & ANET_IP_ONLY) hints.ai_flags = AI_NUMERICHOST;//以数字格式返回
+    hints.ai_family = AF_UNSPEC;//未指定协议族
     hints.ai_socktype = SOCK_STREAM;  /* specify socktype to avoid dups */
 
-    if ((rv = getaddrinfo(host, NULL, &hints, &info)) != 0) {
+    if ((rv = getaddrinfo(host, NULL, &hints, &info)) != 0) {//根据主机名获得地址
         anetSetError(err, "%s", gai_strerror(rv));
         return ANET_ERR;
     }
@@ -235,7 +235,7 @@ int anetResolveIP(char *err, char *host, char *ipbuf, size_t ipbuf_len) {
     return anetGenericResolve(err,host,ipbuf,ipbuf_len,ANET_IP_ONLY);
 }
 
-static int anetSetReuseAddr(char *err, int fd) {
+static int anetSetReuseAddr(char *err, int fd) {//地址复用
     int yes = 1;
     /* Make sure connection-intensive things like the redis benckmark
      * will be able to close/open sockets a zillion of times */
@@ -246,7 +246,7 @@ static int anetSetReuseAddr(char *err, int fd) {
     return ANET_OK;
 }
 
-static int anetCreateSocket(char *err, int domain) {
+static int anetCreateSocket(char *err, int domain) {//创建套接字
     int s;
     if ((s = socket(domain, SOCK_STREAM, 0)) == -1) {
         anetSetError(err, "creating socket: %s", strerror(errno));
@@ -255,7 +255,7 @@ static int anetCreateSocket(char *err, int domain) {
 
     /* Make sure connection-intensive things like the redis benchmark
      * will be able to close/open sockets a zillion of times */
-    if (anetSetReuseAddr(err,s) == ANET_ERR) {
+    if (anetSetReuseAddr(err,s) == ANET_ERR) {//设置地址复用
         close(s);
         return ANET_ERR;
     }
@@ -277,7 +277,7 @@ static int anetTcpGenericConnect(char *err, char *addr, int port,
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
-    if ((rv = getaddrinfo(addr,portstr,&hints,&servinfo)) != 0) {
+    if ((rv = getaddrinfo(addr,portstr,&hints,&servinfo)) != 0) {//获取地址信息
         anetSetError(err, "%s", gai_strerror(rv));
         return ANET_ERR;
     }
@@ -285,10 +285,10 @@ static int anetTcpGenericConnect(char *err, char *addr, int port,
         /* Try to create the socket and to connect it.
          * If we fail in the socket() call, or on connect(), we retry with
          * the next entry in servinfo. */
-        if ((s = socket(p->ai_family,p->ai_socktype,p->ai_protocol)) == -1)
+        if ((s = socket(p->ai_family,p->ai_socktype,p->ai_protocol)) == -1)//创建套接字
             continue;
-        if (anetSetReuseAddr(err,s) == ANET_ERR) goto error;
-        if (flags & ANET_CONNECT_NONBLOCK && anetNonBlock(err,s) != ANET_OK)
+        if (anetSetReuseAddr(err,s) == ANET_ERR) goto error;//设置地址复用
+        if (flags & ANET_CONNECT_NONBLOCK && anetNonBlock(err,s) != ANET_OK)//设置非阻塞
             goto error;
         if (source_addr) {
             int bound = 0;
@@ -299,7 +299,7 @@ static int anetTcpGenericConnect(char *err, char *addr, int port,
                 goto error;
             }
             for (b = bservinfo; b != NULL; b = b->ai_next) {
-                if (bind(s,b->ai_addr,b->ai_addrlen) != -1) {
+                if (bind(s,b->ai_addr,b->ai_addrlen) != -1) {//绑定1个套接字
                     bound = 1;
                     break;
                 }
@@ -310,7 +310,7 @@ static int anetTcpGenericConnect(char *err, char *addr, int port,
                 goto error;
             }
         }
-        if (connect(s,p->ai_addr,p->ai_addrlen) == -1) {
+        if (connect(s,p->ai_addr,p->ai_addrlen) == -1) {//判断是否为非阻塞
             /* If the socket is non-blocking, it is ok for connect() to
              * return an EINPROGRESS error here. */
             if (errno == EINPROGRESS && flags & ANET_CONNECT_NONBLOCK)
@@ -345,7 +345,7 @@ end:
     }
 }
 
-int anetTcpConnect(char *err, char *addr, int port)
+int anetTcpConnect(char *err, char *addr, int port)//创建TCP连接
 {
     return anetTcpGenericConnect(err,addr,port,NULL,ANET_CONNECT_NONE);
 }
@@ -369,21 +369,21 @@ int anetTcpNonBlockBestEffortBindConnect(char *err, char *addr, int port,
             ANET_CONNECT_NONBLOCK|ANET_CONNECT_BE_BINDING);
 }
 
-int anetUnixGenericConnect(char *err, char *path, int flags)
+int anetUnixGenericConnect(char *err, char *path, int flags)//创建UNIX域连接
 {
     int s;
     struct sockaddr_un sa;
 
-    if ((s = anetCreateSocket(err,AF_LOCAL)) == ANET_ERR)
+    if ((s = anetCreateSocket(err,AF_LOCAL)) == ANET_ERR)//创建套接字
         return ANET_ERR;
 
     sa.sun_family = AF_LOCAL;
     strncpy(sa.sun_path,path,sizeof(sa.sun_path)-1);
     if (flags & ANET_CONNECT_NONBLOCK) {
-        if (anetNonBlock(err,s) != ANET_OK)
+        if (anetNonBlock(err,s) != ANET_OK)//设置非阻塞
             return ANET_ERR;
     }
-    if (connect(s,(struct sockaddr*)&sa,sizeof(sa)) == -1) {
+    if (connect(s,(struct sockaddr*)&sa,sizeof(sa)) == -1) {//连接
         if (errno == EINPROGRESS &&
             flags & ANET_CONNECT_NONBLOCK)
             return s;
@@ -407,10 +407,10 @@ int anetUnixNonBlockConnect(char *err, char *path)
 
 /* Like read(2) but make sure 'count' is read before to return
  * (unless error or EOF condition is encountered) */
-int anetRead(int fd, char *buf, int count)
+int anetRead(int fd, char *buf, int count)//读取数据
 {
     int nread, totlen = 0;
-    while(totlen != count) {
+    while(totlen != count) {//循环读取
         nread = read(fd,buf,count-totlen);
         if (nread == 0) return totlen;
         if (nread == -1) return -1;
@@ -422,7 +422,7 @@ int anetRead(int fd, char *buf, int count)
 
 /* Like write(2) but make sure 'count' is read before to return
  * (unless error is encountered) */
-int anetWrite(int fd, char *buf, int count)
+int anetWrite(int fd, char *buf, int count)//循环写
 {
     int nwritten, totlen = 0;
     while(totlen != count) {
@@ -435,7 +435,7 @@ int anetWrite(int fd, char *buf, int count)
     return totlen;
 }
 
-static int anetListen(char *err, int s, struct sockaddr *sa, socklen_t len, int backlog) {
+static int anetListen(char *err, int s, struct sockaddr *sa, socklen_t len, int backlog) {//绑定监听
     if (bind(s,sa,len) == -1) {
         anetSetError(err, "bind: %s", strerror(errno));
         close(s);
@@ -450,7 +450,7 @@ static int anetListen(char *err, int s, struct sockaddr *sa, socklen_t len, int 
     return ANET_OK;
 }
 
-static int anetV6Only(char *err, int s) {
+static int anetV6Only(char *err, int s) {//只支持IPv6
     int yes = 1;
     if (setsockopt(s,IPPROTO_IPV6,IPV6_V6ONLY,&yes,sizeof(yes)) == -1) {
         anetSetError(err, "setsockopt: %s", strerror(errno));
@@ -460,7 +460,7 @@ static int anetV6Only(char *err, int s) {
     return ANET_OK;
 }
 
-static int _anetTcpServer(char *err, int port, char *bindaddr, int af, int backlog)
+static int _anetTcpServer(char *err, int port, char *bindaddr, int af, int backlog)//创建TCP服务
 {
     int s, rv;
     char _port[6];  /* strlen("65535") */
@@ -507,7 +507,7 @@ int anetTcp6Server(char *err, int port, char *bindaddr, int backlog)
     return _anetTcpServer(err, port, bindaddr, AF_INET6, backlog);
 }
 
-int anetUnixServer(char *err, char *path, mode_t perm, int backlog)
+int anetUnixServer(char *err, char *path, mode_t perm, int backlog)//创建UNIX域连接服务
 {
     int s;
     struct sockaddr_un sa;
@@ -525,7 +525,7 @@ int anetUnixServer(char *err, char *path, mode_t perm, int backlog)
     return s;
 }
 
-static int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *len) {
+static int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *len) {//accept等待连接
     int fd;
     while(1) {
         fd = accept(s,sa,len);
@@ -571,7 +571,7 @@ int anetUnixAccept(char *err, int s) {
     return fd;
 }
 
-int anetPeerToString(int fd, char *ip, size_t ip_len, int *port) {
+int anetPeerToString(int fd, char *ip, size_t ip_len, int *port) {//获取对端信息
     struct sockaddr_storage sa;
     socklen_t salen = sizeof(sa);
 
@@ -607,7 +607,7 @@ error:
     return -1;
 }
 
-int anetSockName(int fd, char *ip, size_t ip_len, int *port) {
+int anetSockName(int fd, char *ip, size_t ip_len, int *port) {//获取套接字名字
     struct sockaddr_storage sa;
     socklen_t salen = sizeof(sa);
 
