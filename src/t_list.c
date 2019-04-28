@@ -815,7 +815,7 @@ void blockForKeys(redisClient *c, robj **keys, int numkeys, mstime_t timeout, ro
 
 /* Unblock a client that's waiting in a blocking operation such as BLPOP.
  * You should never call this function directly, but unblockClient() instead. */
-void unblockClientWaitingData(redisClient *c) {
+void unblockClientWaitingData(redisClient *c) {//开启等待BLOP操作的客户端
     dictEntry *de;
     dictIterator *di;
     list *l;

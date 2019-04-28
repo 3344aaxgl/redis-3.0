@@ -77,15 +77,15 @@ int getTimeoutFromObjectOrReply(redisClient *c, robj *object, mstime_t *timeout,
     long long tval;
 
     if (getLongLongFromObjectOrReply(c,object,&tval,
-        "timeout is not an integer or out of range") != REDIS_OK)
+        "timeout is not an integer or out of range") != REDIS_OK)//从object获取值
         return REDIS_ERR;
 
-    if (tval < 0) {
+    if (tval < 0) {//小于0
         addReplyError(c,"timeout is negative");
         return REDIS_ERR;
     }
 
-    if (tval > 0) {
+    if (tval > 0) {//大于0，转换毫秒
         if (unit == UNIT_SECONDS) tval *= 1000;
         tval += mstime();
     }
@@ -97,7 +97,7 @@ int getTimeoutFromObjectOrReply(redisClient *c, robj *object, mstime_t *timeout,
 /* Block a client for the specific operation type. Once the REDIS_BLOCKED
  * flag is set client query buffer is not longer processed, but accumulated,
  * and will be processed when the client is unblocked. */
-void blockClient(redisClient *c, int btype) {
+void blockClient(redisClient *c, int btype) {//设置客户端阻塞
     c->flags |= REDIS_BLOCKED;
     c->btype = btype;
     server.bpop_blocked_clients++;
@@ -110,12 +110,12 @@ void processUnblockedClients(void) {
     listNode *ln;
     redisClient *c;
 
-    while (listLength(server.unblocked_clients)) {
+    while (listLength(server.unblocked_clients)) {//遍历非阻塞客户端
         ln = listFirst(server.unblocked_clients);
         redisAssert(ln != NULL);
         c = ln->value;
-        listDelNode(server.unblocked_clients,ln);
-        c->flags &= ~REDIS_UNBLOCKED;
+        listDelNode(server.unblocked_clients,ln);//从列表中删除
+        c->flags &= ~REDIS_UNBLOCKED;//更新flag
 
         /* Process remaining data in the input buffer. */
         if (c->querybuf && sdslen(c->querybuf) > 0) {
@@ -128,9 +128,9 @@ void processUnblockedClients(void) {
 
 /* Unblock a client calling the right function depending on the kind
  * of operation the client is blocking for. */
-void unblockClient(redisClient *c) {
+void unblockClient(redisClient *c) {//取消给定的客户端的阻塞状态
     if (c->btype == REDIS_BLOCKED_LIST) {
-        unblockClientWaitingData(c);
+        unblockClientWaitingData(c);//删除等待BLOP操作的客户端
     } else if (c->btype == REDIS_BLOCKED_WAIT) {
         unblockClientWaitingReplicas(c);
     } else {
@@ -138,11 +138,11 @@ void unblockClient(redisClient *c) {
     }
     /* Clear the flags, and put the client in the unblocked list so that
      * we'll process new commands in its query buffer ASAP. */
-    c->flags &= ~REDIS_BLOCKED;
+    c->flags &= ~REDIS_BLOCKED;//设置非阻塞状态
     c->flags |= REDIS_UNBLOCKED;
     c->btype = REDIS_BLOCKED_NONE;
     server.bpop_blocked_clients--;
-    listAddNodeTail(server.unblocked_clients,c);
+    listAddNodeTail(server.unblocked_clients,c);//添加到非阻塞状态客户端链表
 }
 
 /* This function gets called when a blocked client timed out in order to

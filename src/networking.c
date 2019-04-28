@@ -697,18 +697,18 @@ void freeClient(redisClient *c) {
     }
 
     /* Free the query buffer */
-    sdsfree(c->querybuf);
+    sdsfree(c->querybuf);//释放查询缓存空间
     c->querybuf = NULL;
 
     /* Deallocate structures used to block on blocking ops. */
-    if (c->flags & REDIS_BLOCKED) unblockClient(c);
+    if (c->flags & REDIS_BLOCKED) unblockClient(c);//设置非阻塞状态
     dictRelease(c->bpop.keys);
 
     /* UNWATCH all the keys */
-    unwatchAllKeys(c);
+    unwatchAllKeys(c);//清空watch信息
     listRelease(c->watched_keys);
 
-    /* Unsubscribe from all the pubsub channels */
+    /* Unsubscribe from all the pubsub channels *///退订所有频道和模式
     pubsubUnsubscribeAllChannels(c,0);
     pubsubUnsubscribeAllPatterns(c,0);
     dictRelease(c->pubsub_channels);
@@ -716,16 +716,16 @@ void freeClient(redisClient *c) {
 
     /* Close socket, unregister events, and remove list of replies and
      * accumulated arguments. */
-    if (c->fd != -1) {
+    if (c->fd != -1) {//关闭套接字，删除所有事件处理
         aeDeleteFileEvent(server.el,c->fd,AE_READABLE);
         aeDeleteFileEvent(server.el,c->fd,AE_WRITABLE);
         close(c->fd);
     }
     listRelease(c->reply);
-    freeClientArgv(c);
+    freeClientArgv(c);//释放参数
 
     /* Remove from the list of clients */
-    if (c->fd != -1) {
+    if (c->fd != -1) {//从服务器链表中删除
         ln = listSearchKey(server.clients,c);
         redisAssert(ln != NULL);
         listDelNode(server.clients,ln);
@@ -733,7 +733,7 @@ void freeClient(redisClient *c) {
 
     /* When client was just unblocked because of a blocking operation,
      * remove it from the list of unblocked clients. */
-    if (c->flags & REDIS_UNBLOCKED) {
+    if (c->flags & REDIS_UNBLOCKED) {//从非阻塞链表中删除
         ln = listSearchKey(server.unblocked_clients,c);
         redisAssert(ln != NULL);
         listDelNode(server.unblocked_clients,ln);
@@ -764,7 +764,7 @@ void freeClient(redisClient *c) {
 
     /* If this client was scheduled for async freeing we need to remove it
      * from the queue. */
-    if (c->flags & REDIS_CLOSE_ASAP) {
+    if (c->flags & REDIS_CLOSE_ASAP) {//
         ln = listSearchKey(server.clients_to_close,c);
         redisAssert(ln != NULL);
         listDelNode(server.clients_to_close,ln);
@@ -773,30 +773,30 @@ void freeClient(redisClient *c) {
     /* Release other dynamically allocated client structure fields,
      * and finally release the client structure itself. */
     if (c->name) decrRefCount(c->name);
-    zfree(c->argv);
-    freeClientMultiState(c);
+    zfree(c->argv);//清除参数空间
+    freeClientMultiState(c);//清除事务状态
     sdsfree(c->peerid);
-    zfree(c);
+    zfree(c);//释放客户端空间
 }
 
 /* Schedule a client to free it at a safe time in the serverCron() function.
  * This function is useful when we need to terminate a client but we are in
  * a context where calling freeClient() is not possible, because the client
  * should be valid for the continuation of the flow of the program. */
-void freeClientAsync(redisClient *c) {
+void freeClientAsync(redisClient *c) {//异步释放给定客户端
     if (c->flags & REDIS_CLOSE_ASAP || c->flags & REDIS_LUA_CLIENT) return;
     c->flags |= REDIS_CLOSE_ASAP;
     listAddNodeTail(server.clients_to_close,c);
 }
 
-void freeClientsInAsyncFreeQueue(void) {
+void freeClientsInAsyncFreeQueue(void) {//异步关闭客户端
     while (listLength(server.clients_to_close)) {
         listNode *ln = listFirst(server.clients_to_close);
         redisClient *c = listNodeValue(ln);
 
         c->flags &= ~REDIS_CLOSE_ASAP;
         freeClient(c);
-        listDelNode(server.clients_to_close,ln);
+        listDelNode(server.clients_to_close,ln);//从链表删除
     }
 }
 
@@ -904,28 +904,28 @@ int processInlineBuffer(redisClient *c) {
     size_t querylen;
 
     /* Search for end of line */
-    newline = strchr(c->querybuf,'\n');
+    newline = strchr(c->querybuf,'\n');//查找换行符
 
     /* Nothing to do without a \r\n */
-    if (newline == NULL) {
+    if (newline == NULL) {//收到的查询内容不符合协议格式，出错
         if (sdslen(c->querybuf) > REDIS_INLINE_MAX_SIZE) {
             addReplyError(c,"Protocol error: too big inline request");
-            setProtocolError(c,0);
+            setProtocolError(c,0);//获取querybuf内容
         }
         return REDIS_ERR;
     }
 
     /* Handle the \r\n case. */
-    if (newline && newline != c->querybuf && *(newline-1) == '\r')
+    if (newline && newline != c->querybuf && *(newline-1) == '\r')//处理\r\n情况
         newline--;
 
     /* Split the input buffer up to the \r\n */
-    querylen = newline-(c->querybuf);
-    aux = sdsnewlen(c->querybuf,querylen);
-    argv = sdssplitargs(aux,&argc);
+    querylen = newline-(c->querybuf);//得到长度
+    aux = sdsnewlen(c->querybuf,querylen);//创建新字符串存储查询缓冲区
+    argv = sdssplitargs(aux,&argc);//分割参数
     sdsfree(aux);
     if (argv == NULL) {
-        addReplyError(c,"Protocol error: unbalanced quotes in request");
+        addReplyError(c,"Protocol error: unbalanced quotes in request");//返回错误信息
         setProtocolError(c,0);
         return REDIS_ERR;
     }
@@ -933,20 +933,20 @@ int processInlineBuffer(redisClient *c) {
     /* Newline from slaves can be used to refresh the last ACK time.
      * This is useful for a slave to ping back while loading a big
      * RDB file. */
-    if (querylen == 0 && c->flags & REDIS_SLAVE)
+    if (querylen == 0 && c->flags & REDIS_SLAVE)//从服务器更新上个一确认时间
         c->repl_ack_time = server.unixtime;
 
     /* Leave data after the first line of the query in the buffer */
-    sdsrange(c->querybuf,querylen+2,-1);
+    sdsrange(c->querybuf,querylen+2,-1);//截取除去第一行的数据
 
     /* Setup argv array on client structure */
-    if (argc) {
+    if (argc) {//分配参数空间
         if (c->argv) zfree(c->argv);
         c->argv = zmalloc(sizeof(robj*)*argc);
     }
 
     /* Create redis objects for all arguments. */
-    for (c->argc = 0, j = 0; j < argc; j++) {
+    for (c->argc = 0, j = 0; j < argc; j++) {//放入客户端结构体中
         if (sdslen(argv[j])) {
             c->argv[c->argc] = createObject(REDIS_STRING,argv[j]);
             c->argc++;
@@ -962,13 +962,13 @@ int processInlineBuffer(redisClient *c) {
  * multi bulk requests idempotent. */
 static void setProtocolError(redisClient *c, int pos) {
     if (server.verbosity <= REDIS_VERBOSE) {
-        sds client = catClientInfoString(sdsempty(),c);
+        sds client = catClientInfoString(sdsempty(),c);//获取客户端各项信息
         redisLog(REDIS_VERBOSE,
             "Protocol error from client: %s", client);
         sdsfree(client);
     }
     c->flags |= REDIS_CLOSE_AFTER_REPLY;
-    sdsrange(c->querybuf,pos,-1);
+    sdsrange(c->querybuf,pos,-1);//截取部分协议内容
 }
 
 int processMultibulkBuffer(redisClient *c) {
@@ -1113,22 +1113,22 @@ void processInputBuffer(redisClient *c) {
     /* Keep processing while there is something in the input buffer */
     while(sdslen(c->querybuf)) {
         /* Return if clients are paused. */
-        if (!(c->flags & REDIS_SLAVE) && clientsArePaused()) return;
+        if (!(c->flags & REDIS_SLAVE) && clientsArePaused()) return;//暂停状态
 
         /* Immediately abort if the client is in the middle of something. */
-        if (c->flags & REDIS_BLOCKED) return;
+        if (c->flags & REDIS_BLOCKED) return;//阻塞中
 
         /* REDIS_CLOSE_AFTER_REPLY closes the connection once the reply is
          * written to the client. Make sure to not let the reply grow after
          * this flag has been set (i.e. don't process more commands). */
-        if (c->flags & REDIS_CLOSE_AFTER_REPLY) return;
+        if (c->flags & REDIS_CLOSE_AFTER_REPLY) return;//已设置关闭，不再处理命令
 
         /* Determine request type when unknown. */
         if (!c->reqtype) {
             if (c->querybuf[0] == '*') {
-                c->reqtype = REDIS_REQ_MULTIBULK;
+                c->reqtype = REDIS_REQ_MULTIBULK;//多条查询
             } else {
-                c->reqtype = REDIS_REQ_INLINE;
+                c->reqtype = REDIS_REQ_INLINE;//内联查询
             }
         }
 
@@ -1239,7 +1239,7 @@ void getClientsMaxBuffers(unsigned long *longest_output_list,
  * It writes the specified ip/port to "peerid" as a null termiated string
  * in the form ip:port if ip does not contain ":" itself, otherwise
  * [ip]:port format is used (for IPv6 addresses basically). */
-void formatPeerId(char *peerid, size_t peerid_len, char *ip, int port) {
+void formatPeerId(char *peerid, size_t peerid_len, char *ip, int port) {//IP:PORT
     if (strchr(ip,':'))
         snprintf(peerid,peerid_len,"[%s]:%d",ip,port);
     else
@@ -1259,18 +1259,18 @@ void formatPeerId(char *peerid, size_t peerid_len, char *ip, int port) {
  * On failure the function still populates 'peerid' with the "?:0" string
  * in case you want to relax error checking or need to display something
  * anyway (see anetPeerToString implementation for more info). */
-int genClientPeerId(redisClient *client, char *peerid, size_t peerid_len) {
+int genClientPeerId(redisClient *client, char *peerid, size_t peerid_len) {//获取对端IP及端口
     char ip[REDIS_IP_STR_LEN];
     int port;
 
-    if (client->flags & REDIS_UNIX_SOCKET) {
+    if (client->flags & REDIS_UNIX_SOCKET) {//UNIX域套接字
         /* Unix socket client. */
         snprintf(peerid,peerid_len,"%s:0",server.unixsocket);
         return REDIS_OK;
-    } else {
+    } else {//将对端信息转成string
         /* TCP client. */
         int retval = anetPeerToString(client->fd,ip,sizeof(ip),&port);
-        formatPeerId(peerid,peerid_len,ip,port);
+        formatPeerId(peerid,peerid_len,ip,port);//组装
         return (retval == -1) ? REDIS_ERR : REDIS_OK;
     }
 }
@@ -1296,12 +1296,12 @@ sds catClientInfoString(sds s, redisClient *client) {
     int emask;
 
     p = flags;
-    if (client->flags & REDIS_SLAVE) {
+    if (client->flags & REDIS_SLAVE) {//从服务器
         if (client->flags & REDIS_MONITOR)
             *p++ = 'O';
         else
             *p++ = 'S';
-    }
+    }//获取客户端信息
     if (client->flags & REDIS_MASTER) *p++ = 'M';
     if (client->flags & REDIS_MULTI) *p++ = 'x';
     if (client->flags & REDIS_BLOCKED) *p++ = 'b';
@@ -1314,22 +1314,22 @@ sds catClientInfoString(sds s, redisClient *client) {
     if (p == flags) *p++ = 'N';
     *p++ = '\0';
 
-    emask = client->fd == -1 ? 0 : aeGetFileEvents(server.el,client->fd);
+    emask = client->fd == -1 ? 0 : aeGetFileEvents(server.el,client->fd);//获取监听事件
     p = events;
     if (emask & AE_READABLE) *p++ = 'r';
     if (emask & AE_WRITABLE) *p++ = 'w';
     *p = '\0';
     return sdscatfmt(s,
         "id=%U addr=%s fd=%i name=%s age=%I idle=%I flags=%s db=%i sub=%i psub=%i multi=%i qbuf=%U qbuf-free=%U obl=%U oll=%U omem=%U events=%s cmd=%s",
-        (unsigned long long) client->id,
-        getClientPeerId(client),
-        client->fd,
-        client->name ? (char*)client->name->ptr : "",
+        (unsigned long long) client->id,//ID
+        getClientPeerId(client),//对端IP及端口
+        client->fd,//套接字
+        client->name ? (char*)client->name->ptr : "",//名字
         (long long)(server.unixtime - client->ctime),
         (long long)(server.unixtime - client->lastinteraction),
-        flags,
-        client->db->id,
-        (int) dictSize(client->pubsub_channels),
+        flags,//FLAG信息
+        client->db->id,//数据库ID
+        (int) dictSize(client->pubsub_channels),//频道长度
         (int) listLength(client->pubsub_patterns),
         (client->flags & REDIS_MULTI) ? client->mstate.count : -1,
         (unsigned long long) sdslen(client->querybuf),
@@ -1338,7 +1338,7 @@ sds catClientInfoString(sds s, redisClient *client) {
         (unsigned long long) listLength(client->reply),
         (unsigned long long) getClientOutputBufferMemoryUsage(client),
         events,
-        client->lastcmd ? client->lastcmd->name : "NULL");
+        client->lastcmd ? client->lastcmd->name : "NULL");//返回客户端信息
 }
 
 sds getAllClientsInfoString(void) {
@@ -1735,7 +1735,7 @@ void pauseClients(mstime_t end) {
  * function checks if the pause time was reached and clear it. */
 int clientsArePaused(void) {
     if (server.clients_paused &&
-        server.clients_pause_end_time < server.mstime)
+        server.clients_pause_end_time < server.mstime)//客户端暂停结束
     {
         listNode *ln;
         listIter li;
@@ -1745,15 +1745,15 @@ int clientsArePaused(void) {
 
         /* Put all the clients in the unblocked clients queue in order to
          * force the re-processing of the input buffer if any. */
-        listRewind(server.clients,&li);
-        while ((ln = listNext(&li)) != NULL) {
+        listRewind(server.clients,&li);//获取指针
+        while ((ln = listNext(&li)) != NULL) {//遍历链表
             c = listNodeValue(ln);
 
             /* Don't touch slaves and blocked clients. The latter pending
              * requests be processed when unblocked. */
-            if (c->flags & (REDIS_SLAVE|REDIS_BLOCKED)) continue;
-            c->flags |= REDIS_UNBLOCKED;
-            listAddNodeTail(server.unblocked_clients,c);
+            if (c->flags & (REDIS_SLAVE|REDIS_BLOCKED)) continue;//跳过从服务器
+            c->flags |= REDIS_UNBLOCKED;//设置非阻塞
+            listAddNodeTail(server.unblocked_clients,c);//加入非阻塞客户端链表
         }
     }
     return server.clients_paused;
