@@ -809,8 +809,8 @@ void sendReplyToClient(aeEventLoop *el, int fd, void *privdata, int mask) {
     REDIS_NOTUSED(mask);
 
     while(c->bufpos > 0 || listLength(c->reply)) {
-        if (c->bufpos > 0) {
-            nwritten = write(fd,c->buf+c->sentlen,c->bufpos-c->sentlen);
+        if (c->bufpos > 0) {//缓冲区不为空
+            nwritten = write(fd,c->buf+c->sentlen,c->bufpos-c->sentlen);//发送数据
             if (nwritten <= 0) break;
             c->sentlen += nwritten;
             totwritten += nwritten;
@@ -821,7 +821,7 @@ void sendReplyToClient(aeEventLoop *el, int fd, void *privdata, int mask) {
                 c->bufpos = 0;
                 c->sentlen = 0;
             }
-        } else {
+        } else {//回复链表不为空
             o = listNodeValue(listFirst(c->reply));
             objlen = sdslen(o->ptr);
             objmem = getStringObjectSdsUsedMemory(o);
@@ -832,7 +832,7 @@ void sendReplyToClient(aeEventLoop *el, int fd, void *privdata, int mask) {
                 continue;
             }
 
-            nwritten = write(fd, ((char*)o->ptr)+c->sentlen,objlen-c->sentlen);
+            nwritten = write(fd, ((char*)o->ptr)+c->sentlen,objlen-c->sentlen);//发送数据
             if (nwritten <= 0) break;
             c->sentlen += nwritten;
             totwritten += nwritten;
@@ -857,7 +857,7 @@ void sendReplyToClient(aeEventLoop *el, int fd, void *privdata, int mask) {
             (server.maxmemory == 0 ||
              zmalloc_used_memory() < server.maxmemory)) break;
     }
-    if (nwritten == -1) {
+    if (nwritten == -1) {//写数据出错
         if (errno == EAGAIN) {
             nwritten = 0;
         } else {
@@ -874,9 +874,9 @@ void sendReplyToClient(aeEventLoop *el, int fd, void *privdata, int mask) {
          * We just rely on data / pings received for timeout detection. */
         if (!(c->flags & REDIS_MASTER)) c->lastinteraction = server.unixtime;
     }
-    if (c->bufpos == 0 && listLength(c->reply) == 0) {
+    if (c->bufpos == 0 && listLength(c->reply) == 0) {//无回复数据
         c->sentlen = 0;
-        aeDeleteFileEvent(server.el,c->fd,AE_WRITABLE);
+        aeDeleteFileEvent(server.el,c->fd,AE_WRITABLE);//删除可写事件
 
         /* Close connection after entire reply has been sent. */
         if (c->flags & REDIS_CLOSE_AFTER_REPLY) freeClient(c);
@@ -887,7 +887,7 @@ void sendReplyToClient(aeEventLoop *el, int fd, void *privdata, int mask) {
 void resetClient(redisClient *c) {
     redisCommandProc *prevcmd = c->cmd ? c->cmd->proc : NULL;
 
-    freeClientArgv(c);
+    freeClientArgv(c);//释放参数空间
     c->reqtype = 0;
     c->multibulklen = 0;
     c->bulklen = -1;
@@ -976,12 +976,12 @@ int processMultibulkBuffer(redisClient *c) {
     int pos = 0, ok;
     long long ll;
 
-    if (c->multibulklen == 0) {
+    if (c->multibulklen == 0) {//
         /* The client should have been reset */
         redisAssertWithInfo(c,NULL,c->argc == 0);
 
         /* Multi bulk length cannot be read without a \r\n */
-        newline = strchr(c->querybuf,'\r');
+        newline = strchr(c->querybuf,'\r');//换行符
         if (newline == NULL) {
             if (sdslen(c->querybuf) > REDIS_INLINE_MAX_SIZE) {
                 addReplyError(c,"Protocol error: too big mbulk count string");
@@ -996,8 +996,8 @@ int processMultibulkBuffer(redisClient *c) {
 
         /* We know for sure there is a whole line since newline != NULL,
          * so go ahead and find out the multi bulk length. */
-        redisAssertWithInfo(c,NULL,c->querybuf[0] == '*');
-        ok = string2ll(c->querybuf+1,newline-(c->querybuf+1),&ll);
+        redisAssertWithInfo(c,NULL,c->querybuf[0] == '*');//首字母必须是*
+        ok = string2ll(c->querybuf+1,newline-(c->querybuf+1),&ll);//取得参数个数
         if (!ok || ll > 1024*1024) {
             addReplyError(c,"Protocol error: invalid multibulk length");
             setProtocolError(c,pos);
@@ -1010,7 +1010,7 @@ int processMultibulkBuffer(redisClient *c) {
             return REDIS_OK;
         }
 
-        c->multibulklen = ll;
+        c->multibulklen = ll;//设置参数数量
 
         /* Setup argv array on client structure */
         if (c->argv) zfree(c->argv);
@@ -1022,7 +1022,7 @@ int processMultibulkBuffer(redisClient *c) {
         /* Read bulk length if unknown */
         if (c->bulklen == -1) {
             newline = strchr(c->querybuf+pos,'\r');
-            if (newline == NULL) {
+            if (newline == NULL) {//为空
                 if (sdslen(c->querybuf) > REDIS_INLINE_MAX_SIZE) {
                     addReplyError(c,
                         "Protocol error: too big bulk count string");
@@ -1033,10 +1033,10 @@ int processMultibulkBuffer(redisClient *c) {
             }
 
             /* Buffer should also contain \n */
-            if (newline-(c->querybuf) > ((signed)sdslen(c->querybuf)-2))
+            if (newline-(c->querybuf) > ((signed)sdslen(c->querybuf)-2))//长度不够
                 break;
 
-            if (c->querybuf[pos] != '$') {
+            if (c->querybuf[pos] != '$') {//必须以$开头
                 addReplyErrorFormat(c,
                     "Protocol error: expected '$', got '%c'",
                     c->querybuf[pos]);
@@ -1044,7 +1044,7 @@ int processMultibulkBuffer(redisClient *c) {
                 return REDIS_ERR;
             }
 
-            ok = string2ll(c->querybuf+pos+1,newline-(c->querybuf+pos+1),&ll);
+            ok = string2ll(c->querybuf+pos+1,newline-(c->querybuf+pos+1),&ll);//读取长度
             if (!ok || ll < 0 || ll > 512*1024*1024) {
                 addReplyError(c,"Protocol error: invalid bulk length");
                 setProtocolError(c,pos);
@@ -1052,7 +1052,7 @@ int processMultibulkBuffer(redisClient *c) {
             }
 
             pos += newline-(c->querybuf+pos)+2;
-            if (ll >= REDIS_MBULK_BIG_ARG) {
+            if (ll >= REDIS_MBULK_BIG_ARG) {//过长，优化
                 size_t qblen;
 
                 /* If we are going to read a large object from network
@@ -1074,7 +1074,7 @@ int processMultibulkBuffer(redisClient *c) {
         if (sdslen(c->querybuf)-pos < (unsigned)(c->bulklen+2)) {
             /* Not enough data (+2 == trailing \r\n) */
             break;
-        } else {
+        } else {//获取参数
             /* Optimization: if the buffer contains JUST our bulk element
              * instead of creating a new object by *copying* the sds we
              * just use the current sds string. */
@@ -1087,7 +1087,7 @@ int processMultibulkBuffer(redisClient *c) {
                 c->querybuf = sdsempty();
                 /* Assume that if we saw a fat argument we'll see another one
                  * likely... */
-                c->querybuf = sdsMakeRoomFor(c->querybuf,c->bulklen+2);
+                c->querybuf = sdsMakeRoomFor(c->querybuf,c->bulklen+2);//
                 pos = 0;
             } else {
                 c->argv[c->argc++] =
@@ -1131,7 +1131,7 @@ void processInputBuffer(redisClient *c) {
                 c->reqtype = REDIS_REQ_INLINE;//内联查询
             }
         }
-
+        //参数处理
         if (c->reqtype == REDIS_REQ_INLINE) {
             if (processInlineBuffer(c) != REDIS_OK) break;
         } else if (c->reqtype == REDIS_REQ_MULTIBULK) {
@@ -1145,7 +1145,7 @@ void processInputBuffer(redisClient *c) {
             resetClient(c);
         } else {
             /* Only reset the client when the command was executed. */
-            if (processCommand(c) == REDIS_OK)
+            if (processCommand(c) == REDIS_OK)//处理命令
                 resetClient(c);
             /* freeMemoryIfNeeded may flush slave output buffers. This may result
              * into a slave, that may be the active client, to be freed. */
@@ -1177,10 +1177,10 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
         if (remaining < readlen) readlen = remaining;
     }
 
-    qblen = sdslen(c->querybuf);
-    if (c->querybuf_peak < qblen) c->querybuf_peak = qblen;
-    c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
-    nread = read(fd, c->querybuf+qblen, readlen);
+    qblen = sdslen(c->querybuf);//查询缓冲区当前长度
+    if (c->querybuf_peak < qblen) c->querybuf_peak = qblen;//更新缓冲区峰值
+    c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);//分配空间
+    nread = read(fd, c->querybuf+qblen, readlen);//读入内容到查询缓存
     if (nread == -1) {
         if (errno == EAGAIN) {
             nread = 0;
@@ -1195,14 +1195,14 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
         return;
     }
     if (nread) {
-        sdsIncrLen(c->querybuf,nread);
+        sdsIncrLen(c->querybuf,nread);//更新空间使用情况
         c->lastinteraction = server.unixtime;
         if (c->flags & REDIS_MASTER) c->reploff += nread;
         server.stat_net_input_bytes += nread;
     } else {
         server.current_client = NULL;
         return;
-    }
+    }//超过服务器最大缓冲区长度，清空缓冲区并释放客户端
     if (sdslen(c->querybuf) > server.client_max_querybuf_len) {
         sds ci = catClientInfoString(sdsempty(),c), bytes = sdsempty();
 
@@ -1212,11 +1212,11 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
         sdsfree(bytes);
         freeClient(c);
         return;
-    }
+    }//创建参数，处理命令
     processInputBuffer(c);
     server.current_client = NULL;
 }
-
+//获取客户端最大的一块缓冲区
 void getClientsMaxBuffers(unsigned long *longest_output_list,
                           unsigned long *biggest_input_buffer) {
     redisClient *c;
@@ -1341,7 +1341,7 @@ sds catClientInfoString(sds s, redisClient *client) {
         client->lastcmd ? client->lastcmd->name : "NULL");//返回客户端信息
 }
 
-sds getAllClientsInfoString(void) {
+sds getAllClientsInfoString(void) {//将客户端信息存入string
     listNode *ln;
     listIter li;
     redisClient *client;
@@ -1357,17 +1357,17 @@ sds getAllClientsInfoString(void) {
     return o;
 }
 
-void clientCommand(redisClient *c) {
+void clientCommand(redisClient *c) {//客户端命令
     listNode *ln;
     listIter li;
     redisClient *client;
 
-    if (!strcasecmp(c->argv[1]->ptr,"list") && c->argc == 2) {
+    if (!strcasecmp(c->argv[1]->ptr,"list") && c->argc == 2) {//client list 命令，获取客户端连接信息
         /* CLIENT LIST */
         sds o = getAllClientsInfoString();
         addReplyBulkCBuffer(c,o,sdslen(o));
         sdsfree(o);
-    } else if (!strcasecmp(c->argv[1]->ptr,"kill")) {
+    } else if (!strcasecmp(c->argv[1]->ptr,"kill")) {//关闭客户端
         /* CLIENT KILL <ip:port>
          * CLIENT KILL <option> [value] ... <option> [value] */
         char *addr = NULL;
@@ -1376,7 +1376,7 @@ void clientCommand(redisClient *c) {
         int skipme = 1;
         int killed = 0, close_this_client = 0;
 
-        if (c->argc == 3) {
+        if (c->argc == 3) {//只有3个参数
             /* Old style syntax: CLIENT KILL <addr> */
             addr = c->argv[2]->ptr;
             skipme = 0; /* With the old form, you can kill yourself. */
