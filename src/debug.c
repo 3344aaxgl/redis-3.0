@@ -928,7 +928,7 @@ void watchdogScheduleSignal(int period) {
     /* Don't automatically restart. */
     it.it_interval.tv_sec = 0;
     it.it_interval.tv_usec = 0;
-    setitimer(ITIMER_REAL, &it, NULL);
+    setitimer(ITIMER_REAL, &it, NULL);//设置定时器
 }
 
 /* Enable the software watchdog with the specified period in milliseconds. */

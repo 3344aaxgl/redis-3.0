@@ -295,7 +295,7 @@ long long timeInMilliseconds(void) {
 }
 
 /* Rehash for an amount of time between ms milliseconds and ms+1 milliseconds */
-int dictRehashMilliseconds(dict *d, int ms) {
+int dictRehashMilliseconds(dict *d, int ms) {//rehash一段时间
     long long start = timeInMilliseconds();
     int rehashes = 0;
 

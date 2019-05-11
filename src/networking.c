@@ -319,7 +319,7 @@ void _addReplyStringToList(redisClient *c, char *s, size_t len) {//添加字符�
  * -------------------------------------------------------------------------- */
 
 void addReply(redisClient *c, robj *obj) {
-    if (prepareClientToWrite(c) != REDIS_OK) return;
+    if (prepareClientToWrite(c) != REDIS_OK) return;//发送数据
 
     /* This is an important place where we can avoid copy-on-write
      * when there is a saving child running, avoiding touching the
@@ -1387,22 +1387,22 @@ void clientCommand(redisClient *c) {//客户端命令
             while(i < c->argc) {
                 int moreargs = c->argc > i+1;
 
-                if (!strcasecmp(c->argv[i]->ptr,"id") && moreargs) {
+                if (!strcasecmp(c->argv[i]->ptr,"id") && moreargs) {//ID
                     long long tmp;
 
                     if (getLongLongFromObjectOrReply(c,c->argv[i+1],&tmp,NULL)
                         != REDIS_OK) return;
                     id = tmp;
-                } else if (!strcasecmp(c->argv[i]->ptr,"type") && moreargs) {
+                } else if (!strcasecmp(c->argv[i]->ptr,"type") && moreargs) {//类型
                     type = getClientTypeByName(c->argv[i+1]->ptr);
                     if (type == -1) {
                         addReplyErrorFormat(c,"Unknown client type '%s'",
                             (char*) c->argv[i+1]->ptr);
                         return;
                     }
-                } else if (!strcasecmp(c->argv[i]->ptr,"addr") && moreargs) {
+                } else if (!strcasecmp(c->argv[i]->ptr,"addr") && moreargs) {//地址
                     addr = c->argv[i+1]->ptr;
-                } else if (!strcasecmp(c->argv[i]->ptr,"skipme") && moreargs) {
+                } else if (!strcasecmp(c->argv[i]->ptr,"skipme") && moreargs) {//是否杀死
                     if (!strcasecmp(c->argv[i+1]->ptr,"yes")) {
                         skipme = 1;
                     } else if (!strcasecmp(c->argv[i+1]->ptr,"no")) {
@@ -1434,7 +1434,7 @@ void clientCommand(redisClient *c) {//客户端命令
             if (c == client && skipme) continue;
 
             /* Kill it. */
-            if (c == client) {
+            if (c == client) {//关闭客户端
                 close_this_client = 1;
             } else {
                 freeClient(client);
@@ -1455,7 +1455,7 @@ void clientCommand(redisClient *c) {//客户端命令
         /* If this client has to be closed, flag it as CLOSE_AFTER_REPLY
          * only after we queued the reply to its output buffers. */
         if (close_this_client) c->flags |= REDIS_CLOSE_AFTER_REPLY;
-    } else if (!strcasecmp(c->argv[1]->ptr,"setname") && c->argc == 3) {
+    } else if (!strcasecmp(c->argv[1]->ptr,"setname") && c->argc == 3) {//设置客户端名称
         int j, len = sdslen(c->argv[2]->ptr);
         char *p = c->argv[2]->ptr;
 
@@ -1483,7 +1483,7 @@ void clientCommand(redisClient *c) {//客户端命令
         c->name = c->argv[2];
         incrRefCount(c->name);
         addReply(c,shared.ok);
-    } else if (!strcasecmp(c->argv[1]->ptr,"getname") && c->argc == 2) {
+    } else if (!strcasecmp(c->argv[1]->ptr,"getname") && c->argc == 2) {//获取客户端名称
         if (c->name)
             addReplyBulk(c,c->name);
         else
@@ -1493,7 +1493,7 @@ void clientCommand(redisClient *c) {//客户端命令
 
         if (getTimeoutFromObjectOrReply(c,c->argv[2],&duration,UNIT_MILLISECONDS)
                                         != REDIS_OK) return;
-        pauseClients(duration);
+        pauseClients(duration);//设置暂停
         addReply(c,shared.ok);
     } else {
         addReplyError(c, "Syntax error, try CLIENT (LIST | KILL ip:port | GETNAME | SETNAME connection-name)");
@@ -1509,29 +1509,29 @@ void rewriteClientCommandVector(redisClient *c, int argc, ...) {
     robj **argv; /* The new argument vector */
 
     argv = zmalloc(sizeof(robj*)*argc);
-    va_start(ap,argc);
+    va_start(ap,argc);//获取参数
     for (j = 0; j < argc; j++) {
         robj *a;
 
-        a = va_arg(ap, robj*);
+        a = va_arg(ap, robj*);//获取参数
         argv[j] = a;
         incrRefCount(a);
     }
     /* We free the objects in the original vector at the end, so we are
      * sure that if the same objects are reused in the new vector the
      * refcount gets incremented before it gets decremented. */
-    for (j = 0; j < c->argc; j++) decrRefCount(c->argv[j]);
+    for (j = 0; j < c->argc; j++) decrRefCount(c->argv[j]);//释放原有参数
     zfree(c->argv);
     /* Replace argv and argc with our new versions. */
-    c->argv = argv;
+    c->argv = argv;//替换参数
     c->argc = argc;
     c->cmd = lookupCommandOrOriginal(c->argv[0]->ptr);
     redisAssertWithInfo(c,NULL,c->cmd != NULL);
-    va_end(ap);
+    va_end(ap);//释放参数列表
 }
 
 /* Completely replace the client command vector with the provided one. */
-void replaceClientCommandVector(redisClient *c, int argc, robj **argv) {
+void replaceClientCommandVector(redisClient *c, int argc, robj **argv) {//替换参数
     freeClientArgv(c);
     zfree(c->argv);
     c->argv = argv;
@@ -1606,7 +1606,7 @@ int getClientType(redisClient *c) {
     return REDIS_CLIENT_TYPE_NORMAL;
 }
 
-int getClientTypeByName(char *name) {
+int getClientTypeByName(char *name) {//客户端类型
     if (!strcasecmp(name,"normal")) return REDIS_CLIENT_TYPE_NORMAL;
     else if (!strcasecmp(name,"slave")) return REDIS_CLIENT_TYPE_SLAVE;
     else if (!strcasecmp(name,"pubsub")) return REDIS_CLIENT_TYPE_PUBSUB;
@@ -1698,12 +1698,12 @@ void flushSlavesOutputBuffers(void) {
          * of put_online_on_ack is to postpone the moment it is installed.
          * This is what we want since slaves in this state should not receive
          * writes before the first ACK. */
-        events = aeGetFileEvents(server.el,slave->fd);
+        events = aeGetFileEvents(server.el,slave->fd);//获取监听事件
         if (events & AE_WRITABLE &&
             slave->replstate == REDIS_REPL_ONLINE &&
             listLength(slave->reply))
         {
-            sendReplyToClient(server.el,slave->fd,slave,0);
+            sendReplyToClient(server.el,slave->fd,slave,0);//发送数据给从服务器
         }
     }
 }
