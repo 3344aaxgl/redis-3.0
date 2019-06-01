@@ -3247,7 +3247,7 @@ int freeMemoryIfNeeded(void) {
     mem_tofree = mem_used - server.maxmemory;
     mem_freed = 0;
     latencyStartMonitor(latency);
-    while (mem_freed < mem_tofree) {
+    while (mem_freed < mem_tofree) {//
         int j, k, keys_freed = 0;
 
         for (j = 0; j < server.dbnum; j++) {
@@ -3266,7 +3266,7 @@ int freeMemoryIfNeeded(void) {
             }
             if (dictSize(dict) == 0) continue;
 
-            /* volatile-random and allkeys-random policy */
+            /* volatile-random and allkeys-random policy *///随机释放
             if (server.maxmemory_policy == REDIS_MAXMEMORY_ALLKEYS_RANDOM ||
                 server.maxmemory_policy == REDIS_MAXMEMORY_VOLATILE_RANDOM)
             {
@@ -3276,7 +3276,7 @@ int freeMemoryIfNeeded(void) {
 
             /* volatile-lru and allkeys-lru policy */
             else if (server.maxmemory_policy == REDIS_MAXMEMORY_ALLKEYS_LRU ||
-                server.maxmemory_policy == REDIS_MAXMEMORY_VOLATILE_LRU)
+                server.maxmemory_policy == REDIS_MAXMEMORY_VOLATILE_LRU)//LRU策略
             {
                 struct evictionPoolEntry *pool = db->eviction_pool;
 
@@ -3310,7 +3310,7 @@ int freeMemoryIfNeeded(void) {
                 }
             }
 
-            /* volatile-ttl */
+            /* volatile-ttl *///选出过期时间距离当前最近的
             else if (server.maxmemory_policy == REDIS_MAXMEMORY_VOLATILE_TTL) {
                 for (k = 0; k < server.maxmemory_samples; k++) {
                     sds thiskey;
@@ -3608,7 +3608,7 @@ int main(int argc, char **argv) {
     gettimeofday(&tv,NULL);
     dictSetHashFunctionSeed(tv.tv_sec^tv.tv_usec^getpid());
     server.sentinel_mode = checkForSentinelMode(argc,argv);
-    initServerConfig();
+    initServerConfig();//初始化服务器
 
     /* We need to init sentinel right now as parsing the configuration file
      * in sentinel mode will have the effect of populating the sentinel
@@ -3641,7 +3641,7 @@ int main(int argc, char **argv) {
 
         /* First argument is the config file name? */
         if (argv[j][0] != '-' || argv[j][1] != '-')
-            configfile = argv[j++];
+            configfile = argv[j++];//配置文件
         /* All the other options are parsed and conceptually appended to the
          * configuration file. For instance --port 6380 will generate the
          * string "port 6380\n" to be parsed after the actual file name
@@ -3667,17 +3667,17 @@ int main(int argc, char **argv) {
             exit(1);
         }
         if (configfile) server.configfile = getAbsolutePath(configfile);
-        resetServerSaveParams();
-        loadServerConfig(configfile,options);
+        resetServerSaveParams();//重置保存条件
+        loadServerConfig(configfile,options);//载入配置文件
         sdsfree(options);
     } else {
         redisLog(REDIS_WARNING, "Warning: no config file specified, using the default config. In order to specify a config file use %s /path/to/%s.conf", argv[0], server.sentinel_mode ? "sentinel" : "redis");
     }
-    if (server.daemonize) daemonize();
-    initServer();
-    if (server.daemonize) createPidFile();
-    redisSetProcTitle(argv[0]);
-    redisAsciiArt();
+    if (server.daemonize) daemonize();//设置为守护进程
+    initServer();//初始化服务器
+    if (server.daemonize) createPidFile();//创建pid文件
+    redisSetProcTitle(argv[0]);//设置进程名
+    redisAsciiArt();//打印ASCII logo
     checkTcpBacklogSettings();
 
     if (!server.sentinel_mode) {
@@ -3686,7 +3686,7 @@ int main(int argc, char **argv) {
     #ifdef __linux__
         linuxMemoryWarnings();
     #endif
-        loadDataFromDisk();
+        loadDataFromDisk();//从AOF或RDB载入数据
         if (server.cluster_enabled) {
             if (verifyClusterConfigWithData() == REDIS_ERR) {
                 redisLog(REDIS_WARNING,
@@ -3709,7 +3709,7 @@ int main(int argc, char **argv) {
     }
 
     aeSetBeforeSleepProc(server.el,beforeSleep);
-    aeMain(server.el);
+    aeMain(server.el);//事件处理器
     aeDeleteEventLoop(server.el);
     return 0;
 }

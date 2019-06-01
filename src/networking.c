@@ -319,7 +319,7 @@ void _addReplyStringToList(redisClient *c, char *s, size_t len) {//添加字符�
  * -------------------------------------------------------------------------- */
 
 void addReply(redisClient *c, robj *obj) {
-    if (prepareClientToWrite(c) != REDIS_OK) return;//发送数据
+    if (prepareClientToWrite(c) != REDIS_OK) return;//准备发送数据
 
     /* This is an important place where we can avoid copy-on-write
      * when there is a saving child running, avoiding touching the

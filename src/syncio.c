@@ -58,7 +58,7 @@ ssize_t syncWrite(int fd, char *ptr, ssize_t size, long long timeout) {
 
         /* Optimistically try to write before checking if the file descriptor
          * is actually writable. At worst we get EAGAIN. */
-        nwritten = write(fd,ptr,size);
+        nwritten = write(fd,ptr,size);//发送数据
         if (nwritten == -1) {
             if (errno != EAGAIN) return -1;
         } else {
@@ -68,7 +68,7 @@ ssize_t syncWrite(int fd, char *ptr, ssize_t size, long long timeout) {
         if (size == 0) return ret;
 
         /* Wait */
-        aeWait(fd,AE_WRITABLE,wait);
+        aeWait(fd,AE_WRITABLE,wait);//等待可写
         elapsed = mstime() - start;
         if (elapsed >= timeout) {
             errno = ETIMEDOUT;
