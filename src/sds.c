@@ -824,7 +824,7 @@ sds *sdssplitargs(const char *line, int *argc) {
     *argc = 0;
     while(1) {
         /* skip blanks */
-        while(*p && isspace(*p)) p++;
+        while(*p && isspace(*p)) p++;//跳过空格
         if (*p) {
             /* get a token */
             int inq=0;  /* set to 1 if we are in "quotes" */

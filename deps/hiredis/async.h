@@ -84,13 +84,13 @@ typedef struct redisAsyncContext {
 
     /* Called when either the connection is terminated due to an error or per
      * user request. The status is set accordingly (REDIS_OK, REDIS_ERR). */
-    redisDisconnectCallback *onDisconnect;
+    redisDisconnectCallback *onDisconnect;//关闭连接回调函数
 
     /* Called when the first write event was received. */
-    redisConnectCallback *onConnect;
+    redisConnectCallback *onConnect;//建立连接回调函数
 
     /* Regular command callbacks */
-    redisCallbackList replies;
+    redisCallbackList replies;//命令回调函数
 
     /* Subscription callbacks */
     struct {

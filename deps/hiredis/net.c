@@ -201,7 +201,7 @@ static int redisContextWaitReady(redisContext *c, const struct timeval *timeout)
     if (errno == EINPROGRESS) {
         int res;
 
-        if ((res = poll(wfd, 1, msec)) == -1) {
+        if ((res = poll(wfd, 1, msec)) == -1) {//等待可以写数据
             __redisSetErrorFromErrno(c, REDIS_ERR_IO, "poll(2)");
             redisContextCloseFd(c);
             return REDIS_ERR;
@@ -315,13 +315,13 @@ static int _redisContextConnectTcp(redisContext *c, const char *addr, int port,
             } else if (errno == EINPROGRESS && !blocking) {
                 /* This is ok. */
             } else {
-                if (redisContextWaitReady(c,timeout) != REDIS_OK)
+                if (redisContextWaitReady(c,timeout) != REDIS_OK)//等待可以写
                     goto error;
             }
         }
         if (blocking && redisSetBlocking(c,1) != REDIS_OK)
             goto error;
-        if (redisSetTcpNoDelay(c) != REDIS_OK)
+        if (redisSetTcpNoDelay(c) != REDIS_OK)//设置TCP不延迟发送
             goto error;
 
         c->flags |= REDIS_CONNECTED;
@@ -344,7 +344,7 @@ end:
 
 int redisContextConnectTcp(redisContext *c, const char *addr, int port,
                            const struct timeval *timeout) {
-    return _redisContextConnectTcp(c, addr, port, timeout, NULL);
+    return _redisContextConnectTcp(c, addr, port, timeout, NULL);//建立TCP连接，等待接收数据
 }
 
 int redisContextConnectBindTcp(redisContext *c, const char *addr, int port,

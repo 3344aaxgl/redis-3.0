@@ -96,12 +96,12 @@ extern "C" {
 
 /* This is the reply object returned by redisCommand() */
 typedef struct redisReply {
-    int type; /* REDIS_REPLY_* */
+    int type; /* REDIS_REPLY_* *///回复类型
     long long integer; /* The integer when type is REDIS_REPLY_INTEGER */
-    int len; /* Length of string */
+    int len; /* Length of string *///字符串回复类型
     char *str; /* Used for both REDIS_REPLY_ERROR and REDIS_REPLY_STRING */
     size_t elements; /* number of elements, for REDIS_REPLY_ARRAY */
-    struct redisReply **element; /* elements vector for REDIS_REPLY_ARRAY */
+    struct redisReply **element; /* elements vector for REDIS_REPLY_ARRAY *///消息嵌套
 } redisReply;
 
 typedef struct redisReadTask {
@@ -122,7 +122,7 @@ typedef struct redisReplyObjectFunctions {
 } redisReplyObjectFunctions;
 
 /* State for the protocol parser */
-typedef struct redisReader {
+typedef struct redisReader {//解析回复信息
     int err; /* Error flags, 0 when there is no error */
     char errstr[128]; /* String representation of error when applicable */
 
@@ -131,11 +131,11 @@ typedef struct redisReader {
     size_t len; /* Buffer length */
     size_t maxbuf; /* Max length of unused buffer */
 
-    redisReadTask rstack[9];
+    redisReadTask rstack[9];//最多9层
     int ridx; /* Index of current read task */
-    void *reply; /* Temporary reply pointer */
+    void *reply; /* Temporary reply pointer *///redisreply结构的根节点
 
-    redisReplyObjectFunctions *fn;
+    redisReplyObjectFunctions *fn;//生成各种类型redisreply结构的函数
     void *privdata;
 } redisReader;
 
@@ -166,10 +166,10 @@ int redisFormatCommandArgv(char **target, int argc, const char **argv, const siz
 typedef struct redisContext {
     int err; /* Error flags, 0 when there is no error */
     char errstr[128]; /* String representation of error when applicable */
-    int fd;
+    int fd;//套接字描述符
     int flags;
-    char *obuf; /* Write buffer */
-    redisReader *reader; /* Protocol reader */
+    char *obuf; /* Write buffer *///输出缓冲区
+    redisReader *reader; /* Protocol reader *///回复信息解析器
 } redisContext;
 
 redisContext *redisConnect(const char *ip, int port);

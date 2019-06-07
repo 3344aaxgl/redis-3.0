@@ -60,7 +60,7 @@ clientBufferLimitsConfig clientBufferLimitsDefaults[REDIS_CLIENT_TYPE_COUNT] = {
  * Config file parsing
  *----------------------------------------------------------------------------*/
 
-int yesnotoi(char *s) {
+int yesnotoi(char *s) {//yes,no转成数字
     if (!strcasecmp(s,"yes")) return 1;
     else if (!strcasecmp(s,"no")) return 0;
     else return -1;
@@ -79,13 +79,13 @@ void resetServerSaveParams(void) {
     server.saveparamslen = 0;
 }
 
-void loadServerConfigFromString(char *config) {
+void loadServerConfigFromString(char *config) {//加载配置信息
     char *err = NULL;
     int linenum = 0, totlines, i;
     int slaveof_linenum = 0;
     sds *lines;
 
-    lines = sdssplitlen(config,strlen(config),"\n",1,&totlines);
+    lines = sdssplitlen(config,strlen(config),"\n",1,&totlines);//按换行符切割
 
     for (i = 0; i < totlines; i++) {
         sds *argv;
@@ -94,45 +94,45 @@ void loadServerConfigFromString(char *config) {
         linenum = i+1;
         lines[i] = sdstrim(lines[i]," \t\r\n");
 
-        /* Skip comments and blank lines */
+        /* Skip comments and blank lines *///跳过注释和空行
         if (lines[i][0] == '#' || lines[i][0] == '\0') continue;
 
         /* Split into arguments */
-        argv = sdssplitargs(lines[i],&argc);
+        argv = sdssplitargs(lines[i],&argc);//拆分
         if (argv == NULL) {
             err = "Unbalanced quotes in configuration line";
             goto loaderr;
         }
 
         /* Skip this line if the resulting command vector is empty. */
-        if (argc == 0) {
+        if (argc == 0) {//
             sdsfreesplitres(argv,argc);
             continue;
         }
         sdstolower(argv[0]);
 
         /* Execute config directives */
-        if (!strcasecmp(argv[0],"timeout") && argc == 2) {
+        if (!strcasecmp(argv[0],"timeout") && argc == 2) {//超时时间
             server.maxidletime = atoi(argv[1]);
             if (server.maxidletime < 0) {
                 err = "Invalid timeout value"; goto loaderr;
             }
-        } else if (!strcasecmp(argv[0],"tcp-keepalive") && argc == 2) {
+        } else if (!strcasecmp(argv[0],"tcp-keepalive") && argc == 2) {//TCP保活
             server.tcpkeepalive = atoi(argv[1]);
             if (server.tcpkeepalive < 0) {
                 err = "Invalid tcp-keepalive value"; goto loaderr;
             }
-        } else if (!strcasecmp(argv[0],"port") && argc == 2) {
+        } else if (!strcasecmp(argv[0],"port") && argc == 2) {//端口
             server.port = atoi(argv[1]);
             if (server.port < 0 || server.port > 65535) {
                 err = "Invalid port"; goto loaderr;
             }
-        } else if (!strcasecmp(argv[0],"tcp-backlog") && argc == 2) {
+        } else if (!strcasecmp(argv[0],"tcp-backlog") && argc == 2) {//日志
             server.tcp_backlog = atoi(argv[1]);
             if (server.tcp_backlog < 0) {
                 err = "Invalid backlog value"; goto loaderr;
             }
-        } else if (!strcasecmp(argv[0],"bind") && argc >= 2) {
+        } else if (!strcasecmp(argv[0],"bind") && argc >= 2) {//绑定IP
             int j, addresses = argc-1;
 
             if (addresses > REDIS_BINDADDR_MAX) {
@@ -141,15 +141,15 @@ void loadServerConfigFromString(char *config) {
             for (j = 0; j < addresses; j++)
                 server.bindaddr[j] = zstrdup(argv[j+1]);
             server.bindaddr_count = addresses;
-        } else if (!strcasecmp(argv[0],"unixsocket") && argc == 2) {
+        } else if (!strcasecmp(argv[0],"unixsocket") && argc == 2) {//unix域套接字
             server.unixsocket = zstrdup(argv[1]);
-        } else if (!strcasecmp(argv[0],"unixsocketperm") && argc == 2) {
+        } else if (!strcasecmp(argv[0],"unixsocketperm") && argc == 2) {//unix域套接字权限
             errno = 0;
             server.unixsocketperm = (mode_t)strtol(argv[1], NULL, 8);
             if (errno || server.unixsocketperm > 0777) {
                 err = "Invalid socket file permissions"; goto loaderr;
             }
-        } else if (!strcasecmp(argv[0],"save")) {
+        } else if (!strcasecmp(argv[0],"save")) {//保存参数
             if (argc == 3) {
                 int seconds = atoi(argv[1]);
                 int changes = atoi(argv[2]);
@@ -160,7 +160,7 @@ void loadServerConfigFromString(char *config) {
             } else if (argc == 2 && !strcasecmp(argv[1],"")) {
                 resetServerSaveParams();
             }
-        } else if (!strcasecmp(argv[0],"dir") && argc == 2) {
+        } else if (!strcasecmp(argv[0],"dir") && argc == 2) {//切换目录
             if (chdir(argv[1]) == -1) {
                 redisLog(REDIS_WARNING,"Can't chdir to '%s': %s",
                     argv[1], strerror(errno));
@@ -1387,9 +1387,9 @@ struct rewriteConfigState *rewriteConfigReadOldFile(char *path) {
  * in any way. */
 void rewriteConfigRewriteLine(struct rewriteConfigState *state, char *option, sds line, int force) {
     sds o = sdsnew(option);
-    list *l = dictFetchValue(state->option_to_line,o);
+    list *l = dictFetchValue(state->option_to_line,o);//取得配置行
 
-    rewriteConfigMarkAsProcessed(state,option);
+    rewriteConfigMarkAsProcessed(state,option);//添加到已执行配置
 
     if (!l && !force) {
         /* Option not used previously, and we are not forced to use it. */
@@ -1405,7 +1405,7 @@ void rewriteConfigRewriteLine(struct rewriteConfigState *state, char *option, sd
         /* There are still lines in the old configuration file we can reuse
          * for this option. Replace the line with the new one. */
         listDelNode(l,ln);
-        if (listLength(l) == 0) dictDelete(state->option_to_line,o);
+        if (listLength(l) == 0) dictDelete(state->option_to_line,o);//替换成新配置
         sdsfree(state->lines[linenum]);
         state->lines[linenum] = line;
     } else {

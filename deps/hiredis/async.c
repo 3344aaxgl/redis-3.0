@@ -66,14 +66,14 @@ static unsigned int callbackHash(const void *key) {
                                sdslen((const sds)key));
 }
 
-static void *callbackValDup(void *privdata, const void *src) {
+static void *callbackValDup(void *privdata, const void *src) {//复制回调结构体
     ((void) privdata);
     redisCallback *dup = malloc(sizeof(*dup));
     memcpy(dup,src,sizeof(*dup));
     return dup;
 }
 
-static int callbackKeyCompare(void *privdata, const void *key1, const void *key2) {
+static int callbackKeyCompare(void *privdata, const void *key1, const void *key2) {//比较两个键是否相同
     int l1, l2;
     ((void) privdata);
 
@@ -83,29 +83,29 @@ static int callbackKeyCompare(void *privdata, const void *key1, const void *key2
     return memcmp(key1,key2,l1) == 0;
 }
 
-static void callbackKeyDestructor(void *privdata, void *key) {
+static void callbackKeyDestructor(void *privdata, void *key) {//析构键函数
     ((void) privdata);
     sdsfree((sds)key);
 }
 
-static void callbackValDestructor(void *privdata, void *val) {
+static void callbackValDestructor(void *privdata, void *val) {//析构值函数
     ((void) privdata);
     free(val);
 }
 
 static dictType callbackDict = {
-    callbackHash,
-    NULL,
-    callbackValDup,
-    callbackKeyCompare,
-    callbackKeyDestructor,
-    callbackValDestructor
+    callbackHash,//哈希函数
+    NULL,//键
+    callbackValDup,//值
+    callbackKeyCompare,//键比较
+    callbackKeyDestructor,//键析构
+    callbackValDestructor//值析构
 };
 
 static redisAsyncContext *redisAsyncInitialize(redisContext *c) {
     redisAsyncContext *ac;
 
-    ac = realloc(c,sizeof(redisAsyncContext));
+    ac = realloc(c,sizeof(redisAsyncContext));//重新分配空间
     if (ac == NULL)
         return NULL;
 
@@ -141,7 +141,7 @@ static redisAsyncContext *redisAsyncInitialize(redisContext *c) {
 
 /* We want the error field to be accessible directly instead of requiring
  * an indirection to the redisContext struct. */
-static void __redisAsyncCopyError(redisAsyncContext *ac) {
+static void __redisAsyncCopyError(redisAsyncContext *ac) {//复制错误
     redisContext *c = &(ac->c);
     ac->err = c->err;
     ac->errstr = c->errstr;
@@ -151,11 +151,11 @@ redisAsyncContext *redisAsyncConnect(const char *ip, int port) {
     redisContext *c;
     redisAsyncContext *ac;
 
-    c = redisConnectNonBlock(ip,port);
+    c = redisConnectNonBlock(ip,port);//建立非阻塞连接
     if (c == NULL)
         return NULL;
 
-    ac = redisAsyncInitialize(c);
+    ac = redisAsyncInitialize(c);//初始化redisAsyncContext对象
     if (ac == NULL) {
         redisFree(c);
         return NULL;
@@ -255,7 +255,7 @@ static void __redisRunCallback(redisAsyncContext *ac, redisCallback *cb, redisRe
     redisContext *c = &(ac->c);
     if (cb->fn != NULL) {
         c->flags |= REDIS_IN_CALLBACK;
-        cb->fn(ac,reply,cb->privdata);
+        cb->fn(ac,reply,cb->privdata);//执行回调函数
         c->flags &= ~REDIS_IN_CALLBACK;
     }
 }
@@ -403,8 +403,8 @@ void redisProcessCallbacks(redisAsyncContext *ac) {
     void *reply = NULL;
     int status;
 
-    while((status = redisGetReply(c,&reply)) == REDIS_OK) {
-        if (reply == NULL) {
+    while((status = redisGetReply(c,&reply)) == REDIS_OK) {//获取reply树结构
+        if (reply == NULL) {//没有回复了
             /* When the connection is being disconnected and there are
              * no more replies, this is the cue to really disconnect. */
             if (c->flags & REDIS_DISCONNECTING && sdslen(c->obuf) == 0) {
@@ -424,7 +424,7 @@ void redisProcessCallbacks(redisAsyncContext *ac) {
 
         /* Even if the context is subscribed, pending regular callbacks will
          * get a reply before pub/sub messages arrive. */
-        if (__redisShiftCallback(&ac->replies,&cb) != REDIS_OK) {
+        if (__redisShiftCallback(&ac->replies,&cb) != REDIS_OK) {//取出第一个回调函数
             /*
              * A spontaneous reply in a not-subscribed context can be the error
              * reply that is sent when a new connection exceeds the maximum
@@ -440,11 +440,11 @@ void redisProcessCallbacks(redisAsyncContext *ac) {
              * In this case we also want to close the connection, and have the
              * user wait until the server is ready to take our request.
              */
-            if (((redisReply*)reply)->type == REDIS_REPLY_ERROR) {
+            if (((redisReply*)reply)->type == REDIS_REPLY_ERROR) {//回复类型为错误
                 c->err = REDIS_ERR_OTHER;
                 snprintf(c->errstr,sizeof(c->errstr),"%s",((redisReply*)reply)->str);
-                c->reader->fn->freeObject(reply);
-                __redisAsyncDisconnect(ac);
+                c->reader->fn->freeObject(reply);//释放回复对象
+                __redisAsyncDisconnect(ac);//断开连接
                 return;
             }
             /* No more regular callbacks and no errors, the context *must* be subscribed or monitoring. */
@@ -454,7 +454,7 @@ void redisProcessCallbacks(redisAsyncContext *ac) {
         }
 
         if (cb.fn != NULL) {
-            __redisRunCallback(ac,&cb,reply);
+            __redisRunCallback(ac,&cb,reply);//执行回调函数
             c->reader->fn->freeObject(reply);
 
             /* Proceed with free'ing when redisAsyncFree() was called. */
@@ -513,11 +513,11 @@ void redisAsyncHandleRead(redisAsyncContext *ac) {
             return;
     }
 
-    if (redisBufferRead(c) == REDIS_ERR) {
+    if (redisBufferRead(c) == REDIS_ERR) {//读取数据
         __redisAsyncDisconnect(ac);
     } else {
         /* Always re-schedule reads */
-        _EL_ADD_READ(ac);
+        _EL_ADD_READ(ac);//再次注册读事件
         redisProcessCallbacks(ac);
     }
 }
@@ -528,24 +528,24 @@ void redisAsyncHandleWrite(redisAsyncContext *ac) {
 
     if (!(c->flags & REDIS_CONNECTED)) {
         /* Abort connect was not successful. */
-        if (__redisAsyncHandleConnect(ac) != REDIS_OK)
+        if (__redisAsyncHandleConnect(ac) != REDIS_OK)//处理断开连接
             return;
         /* Try again later when the context is still not connected. */
         if (!(c->flags & REDIS_CONNECTED))
             return;
     }
 
-    if (redisBufferWrite(c,&done) == REDIS_ERR) {
+    if (redisBufferWrite(c,&done) == REDIS_ERR) {//发送数据
         __redisAsyncDisconnect(ac);
     } else {
         /* Continue writing when not done, stop writing otherwise */
         if (!done)
-            _EL_ADD_WRITE(ac);
+            _EL_ADD_WRITE(ac);//继续发送
         else
-            _EL_DEL_WRITE(ac);
+            _EL_DEL_WRITE(ac);//删除可写事件
 
         /* Always schedule reads after writes */
-        _EL_ADD_READ(ac);
+        _EL_ADD_READ(ac);//注册可读事件
     }
 }
 
