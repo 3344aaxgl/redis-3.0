@@ -2165,7 +2165,7 @@ void processClientsWaitingReplicas(void) {
 long long replicationGetSlaveOffset(void) {
     long long offset = 0;
 
-    if (server.masterhost != NULL) {
+    if (server.masterhost != NULL) {//主服务器不为空
         if (server.master) {
             offset = server.master->reploff;
         } else if (server.cached_master) {
